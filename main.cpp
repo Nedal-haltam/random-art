@@ -2,6 +2,8 @@
 #include <fstream>
 #include <time.h>
 #include <math.h>
+#include <assert.h>
+
 #define WIDTH 256
 #define HEIGHT 256
 
@@ -33,14 +35,19 @@ Color GenGradient(float x, float y)
     return ToColor(v);
 }
 
-Color GetColorFromxy(float x, float y)
+typedef struct Node
 {
-    if (x * y >= 0) return ToColor({x, y, 1});
-    float t = fmodf(x, y);
-    return ToColor({t, t, t});
+
+} Node;
+
+Color eval(Node* f, float x, float y)
+{
+    assert(false && "TODO: eval\n");
+    return {};
 }
 
-bool GeneratePPM(std::string FilePath)
+// bool GeneratePPM(std::string FilePath, Color (*f)(float, float))
+bool GeneratePPM(std::string FilePath, Node *f)
 {
     std::ofstream image(FilePath);
     if (!image) {
@@ -52,8 +59,8 @@ bool GeneratePPM(std::string FilePath)
         float Normalizedy = ((float)y / HEIGHT) * 2 - 1;
         for (int x = 0; x < WIDTH; ++x) {
             float Normalizedx = ((float)x / WIDTH) * 2 - 1;
-            // Color c = GenGradient(Normalizedx, Normalizedy);
-            Color c = GetColorFromxy(Normalizedx, Normalizedy);
+            // Color c = f(Normalizedx, Normalizedy);
+            Color c = eval(f, Normalizedx, Normalizedy);
             image << c.r << ' ' << c.g << ' ' << c.b << '\n';
         }
     }
@@ -64,7 +71,12 @@ bool GeneratePPM(std::string FilePath)
 int main() 
 {
     srand(time(0));
-    if (!GeneratePPM("output.ppm")) return 1;
-    std::cout << "PPM image generated: output.ppm\n";
+    std::string FilePath = "output.ppm";
+
+    // if (!GeneratePPM(FilePath, GenGradient)) return 1;
+    Node n = Node();
+    if (!GeneratePPM(FilePath, &n)) return 1;
+
+    std::cout << "INFO: PPM image generated: " << FilePath << "\n";
     return 0;
 }
