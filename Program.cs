@@ -337,8 +337,8 @@ namespace random_art
         }
         static int Main(/*string[] args*/)
         {
-            string FilePath = "output.ppm";
-            // TODO: check if we can get other things out of the result of NodeIf NodeX maybe
+            // TODO: check if we can get other things out of the result of NodeIf maybe NodeX
+            // TODO: print NodeIf better, do better printing in general
             Node f = NodeIf(
                 NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
                 NodeTriple(NodeX(), NodeY(), NodeNumber(1)),
@@ -360,7 +360,7 @@ namespace random_art
                 return 1;
             }
 
-            Log(LogType.INFO, $"PPM image generated: {FilePath}\n");
+            Log(LogType.INFO, $"PPM image generated\n");
             return 0;
         }
     }
