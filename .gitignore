@@ -1,2 +1,5 @@
 *.exe
 *.ppm
+/.vs
+/obj
+/bin
