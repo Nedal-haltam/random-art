@@ -307,15 +307,11 @@ namespace random_art
                 return 1;
             }
 
-            //Node f = NodeIf(
-            //    NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
-            //    NodeTriple(NodeX(), NodeY(), NodeNumber(1)),
-            //    NodeTriple(NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()))
-            //    );
-            Node f = NodeTriple(
-                NodeIf(NodeX(), NodeX(), NodeY()),
-                NodeX(),
-                NodeY());
+            Node f = NodeIf(
+                NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
+                NodeTriple(NodeX(), NodeY(), NodeNumber(1)),
+                NodeTriple(NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()))
+                );
             if (!GeneratePPM("output2.ppm", ref f))
             {
                 Log(LogType.ERROR, "Could not Generate PPM image");
