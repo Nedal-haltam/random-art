@@ -252,67 +252,108 @@ namespace random_art
             File.WriteAllText(FilePath, image.ToString());
             return true;
         }
-        //static void NodeBinaryPrint(NodeBinary binary)
-        //{
-        //    Console.Write("triple(");
-        //    NodePrint(ref binary.lhs);
-        //    Console.Write(", ");
-        //    NodePrint(ref binary.rhs);
-        //    Console.Write(")");
-        //}
-        //static void NodeTriplePrint(NodeTriple triple)
-        //{
-        //    Console.Write("triple(");
-        //    NodePrint(ref triple.first);
-        //    Console.Write(", ");
-        //    NodePrint(ref triple.second);
-        //    Console.Write(", ");
-        //    NodePrint(ref triple.third);
-        //    Console.Write(")");
-        //}
-        //static void NodePrint(ref Node node)
-        //{
-        //    switch (node.type)
-        //    {
-        //        case NodeType.number:
-        //            Console.Write(node.number);
-        //            break;
-        //        case NodeType.X:
-        //            Console.Write("x");
-        //            break;
-        //        case NodeType.Y:
-        //            Console.Write("y");
-        //            break;
-        //        case NodeType.binary:
-        //            NodeBinaryPrint(node.binary);
-        //            break;
-        //        case NodeType.triple:
-        //            NodeTriplePrint(node.triple);
-        //            break;
-        //        default: throw new Exception("UNREACHABLE(NodePrint)");
-        //    }
-        //}
+        static void NodeBinaryPrint(ref NodeBinary binary)
+        {
+            Console.Write($"{binary.type}(");
+            NodePrint(ref binary.lhs);
+            Console.Write(", ");
+            NodePrint(ref binary.rhs);
+            Console.Write(")");
+        }
+        static void NodeTriplePrint(ref NodeTriple triple)
+        {
+            Console.Write("triple(");
+            NodePrint(ref triple.first);
+            Console.Write(", ");
+            NodePrint(ref triple.second);
+            Console.Write(", ");
+            NodePrint(ref triple.third);
+            Console.Write(")");
+        }
+        static void NodePrint(ref Node node)
+        {
+            switch (node.type)
+            {
+                case NodeType.number:
+                    Console.Write(node.number);
+                    break;
+                case NodeType.X:
+                    Console.Write("x");
+                    break;
+                case NodeType.Y:
+                    Console.Write("y");
+                    break;
+                case NodeType.binary:
+                    NodeBinaryPrint(ref node.binary);
+                    break;
+                case NodeType.If:
+                    Console.Write($"if (");
+                    NodePrint(ref node.iff.cond);
+                    Console.Write(") ");
+                    Console.Write("then (");
+                    NodePrint(ref node.iff.then);
+                    Console.Write(") ");
+                    Console.Write("else (");
+                    NodePrint(ref node.iff.elsee);
+                    Console.Write(")");
+                    break;
+                case NodeType.boolean:
+                    Console.Write(node.boolean);
+                    break;
+                case NodeType.triple:
+                    NodeTriplePrint(ref node.triple);
+                    break;
+                default: throw new Exception("UNREACHABLE(NodePrint)");
+            }
+        }
         static Color GenColorFromCoord(float x, float y)
         {
             if (x * y > 0) return ToColor(new(x, y, 1));
             float t = x % y;
             return ToColor(new(t, t, t));
         }
+        static readonly Random r = new();
+        static Node GenNode(int depth)
+        {
+            if (depth == 0)
+            {
+                int tt = 1 + r.Next(3);
+                if (tt == 1)
+                    return NodeX();
+                else if (tt == 2)
+                    return NodeY();
+                else if (tt == 3)
+                    return NodeNumber(r.NextSingle()*2 - 1);
+            }
+            int t = 1 + r.Next(4);
+            switch (t)
+            {
+                case 1: return NodeADD(GenNode(depth - 1), GenNode(depth - 1));
+                case 2: return NodeSUB(GenNode(depth - 1), GenNode(depth - 1));
+                case 3: return NodeMUL(GenNode(depth - 1), GenNode(depth - 1));
+                case 4: return NodeMOD(GenNode(depth - 1), GenNode(depth - 1));
+                default: throw new Exception();
+            }
+        }
         static int Main(/*string[] args*/)
         {
             string FilePath = "output.ppm";
+            // TODO: check if we can get other things out of the result of NodeIf NodeX maybe
+            Node f = NodeIf(
+                NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
+                NodeTriple(NodeX(), NodeY(), NodeNumber(1)),
+                NodeTriple(NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()))
+                );
+            NodePrint(ref f);
+            return 0;
+            //int depth = 5;
+            //Node f = NodeTriple(GenNode(depth), GenNode(depth), GenNode(depth));
 
             if (!GeneratePPM("output.ppm", GenColorFromCoord))
             {
                 Log(LogType.ERROR, "Could not Generate PPM image");
                 return 1;
             }
-
-            Node f = NodeIf(
-                NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
-                NodeTriple(NodeX(), NodeY(), NodeNumber(1)),
-                NodeTriple(NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()))
-                );
             if (!GeneratePPM("output2.ppm", ref f))
             {
                 Log(LogType.ERROR, "Could not Generate PPM image");
