@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Diagnostics.Contracts;
 using System.Drawing;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
 
@@ -13,9 +15,13 @@ namespace random_art
         public byte b = b;
         public byte a = a;
     }
+    public enum NodeType
+    {
+        number, X, Y, If, boolean, binary, triple
+    }
     public enum NodeBinaryType
     {
-        ADD, MUL, SUB
+        ADD, MUL, SUB, GT, MOD,
     }
     public sealed class NodeBinary(NodeBinaryType type, Node lhs, Node rhs)
     {
@@ -29,19 +35,35 @@ namespace random_art
         public Node second = second;
         public Node third = third;
     }
-    public enum NodeType
+    public sealed class NodeIf(Node cond, Node then, Node elsee)
     {
-        Number, X, Y, Binary, Triple
+        public Node cond = cond;
+        public Node then = then;
+        public Node elsee = elsee;
     }
     public struct Node
     {
         public NodeType type;
-        public float Number;
-        public NodeBinary Binary;
-        public NodeTriple Triple;
+        public float number;
+        public bool boolean;
+        public NodeBinary binary;
+        public NodeTriple triple;
+        public NodeIf iff;
     }
     internal sealed class Program
     {
+        const int WIDTH = 256;
+        const int HEIGHT = 256;
+        static Color ToColor(Vector3 v, float min = -1, float max = 1)
+        {
+            // min..max
+            // 0..255
+            return new(
+                (byte)((v.X - min) * (255.0f / (max - min))), 
+                (byte)((v.Y - min) * (255.0f / (max - min))), 
+                (byte)((v.Z - min) * (255.0f / (max - min))));
+        }
+
         public enum LogType
         {
             INFO, WARNING, ERROR
@@ -64,10 +86,21 @@ namespace random_art
                     Console.ForegroundColor = ConsoleColor.Red;
                     head = "ERROR: ";
                     break;
-                default: throw new Exception("UNREACHABLE\n");
+                default: throw new Exception("UNREACHABLE(Log)\n");
             }
             Console.Write(head + msg);
             Console.ForegroundColor = before;
+        }
+
+
+
+        static Node NodeNumber(float number)
+        {
+            return new Node() { type = NodeType.number, number = number };
+        }
+        static Node NodeBoolean(bool boolean)
+        {
+            return new Node() { type = NodeType.boolean, boolean = boolean };
         }
         static Node NodeX()
         {
@@ -77,86 +110,111 @@ namespace random_art
         {
             return new Node() { type = NodeType.Y };
         }
-        static Node NodeNumber(float number)
-        {
-            return new Node() { type = NodeType.Number, Number = number };
-        }
-        static Node NodeTriple(Node first, Node second, Node third)
-        {
-            return new Node() { type = NodeType.Triple, Triple = new(first, second, third) };
-        }
         static Node NodeADD(Node lhs, Node rhs)
         {
-            return new Node() { type = NodeType.Binary, Binary = new(NodeBinaryType.ADD, lhs, rhs) };
+            return new Node() { type = NodeType.binary, binary = new(NodeBinaryType.ADD, lhs, rhs) };
         }
         static Node NodeSUB(Node lhs, Node rhs)
         {
-            return new Node() { type = NodeType.Binary, Binary = new(NodeBinaryType.SUB, lhs, rhs) };
+            return new Node() { type = NodeType.binary, binary = new(NodeBinaryType.SUB, lhs, rhs) };
         }
         static Node NodeMUL(Node lhs, Node rhs)
         {
-            return new Node() { type = NodeType.Binary, Binary = new(NodeBinaryType.MUL, lhs, rhs) };
+            return new Node() { type = NodeType.binary, binary = new(NodeBinaryType.MUL, lhs, rhs) };
         }
-        const int WIDTH = 256;
-        const int HEIGHT = 256;
-        static Color ToColor(Vector3 v, float min = -1, float max = 1)
+        static Node NodeMOD(Node lhs, Node rhs)
         {
-            // min..max
-            // 0..255
-            float m = -min;
-            return new((byte)((v.X + (m)) * (255.0f / (max - min))), (byte)((v.Y + (m)) * (255.0f / (max - min))), (byte)((v.Z + (m)) * (255.0f / (max - min))));
+            return new Node() { type = NodeType.binary, binary = new(NodeBinaryType.MOD, lhs, rhs) };
+        }
+
+
+        static Node NodeGT(Node lhs, Node rhs)
+        {
+            return new Node() { type = NodeType.binary, binary = new(NodeBinaryType.GT, lhs, rhs) };
+        }
+
+        static Node NodeIf(Node cond, Node then, Node elsee)
+        {
+            return new() { type = NodeType.If, iff = new(cond, then, elsee) };
+        }
+        static Node NodeTriple(Node first, Node second, Node third)
+        {
+            return new Node() { type = NodeType.triple, triple = new(first, second, third) };
         }
         static Node EvalBinary(Node lhs, Node rhs, NodeBinaryType type)
         {
             return type switch
             {
-                NodeBinaryType.ADD => NodeNumber(lhs.Number + rhs.Number),
-                NodeBinaryType.SUB => NodeNumber(lhs.Number - rhs.Number),
-                NodeBinaryType.MUL => NodeNumber(lhs.Number * rhs.Number),
-                _ => throw new Exception("UNREACHABLE(evalBinary)\n"),
+                NodeBinaryType.ADD => NodeNumber(lhs.number + rhs.number),
+                NodeBinaryType.SUB => NodeNumber(lhs.number - rhs.number),
+                NodeBinaryType.MUL => NodeNumber(lhs.number * rhs.number),
+                NodeBinaryType.MOD => NodeNumber(lhs.number % rhs.number),
+                NodeBinaryType.GT => NodeBoolean(lhs.number > rhs.number),
+                _ => throw new Exception("UNREACHABLE(EvalBinary)\n"),
             };
         }
+#pragma warning disable IDE0079
+#pragma warning disable RETURN0001
         static Node? EvalToNode(ref Node f, float x, float y)
         {
             switch (f.type)
             {
-                case NodeType.Number: return f;
+                case NodeType.number:
+                case NodeType.boolean: return f;
                 case NodeType.X: return NodeNumber(x);
                 case NodeType.Y: return NodeNumber(y);
-                case NodeType.Binary:
-                    Node? lhs = EvalToNode(ref f.Binary.lhs, x, y);
+                case NodeType.binary:
+                    Node? lhs = EvalToNode(ref f.binary.lhs, x, y);
                     if (!lhs.HasValue) return null;
-                    if (lhs.Value.type != NodeType.Number) return null;
-                    Node? rhs = EvalToNode(ref f.Binary.rhs, x, y);
+                    if (lhs.Value.type != NodeType.number) return null;
+                    Node? rhs = EvalToNode(ref f.binary.rhs, x, y);
                     if (!rhs.HasValue) return null;
-                    if (rhs.Value.type != NodeType.Number) return null;
-                    return EvalBinary(lhs.Value, rhs.Value, f.Binary.type);
-                case NodeType.Triple:
-                    Node? first = EvalToNode(ref f.Triple.first, x, y);
+                    if (rhs.Value.type != NodeType.number) return null;
+                    return EvalBinary(lhs.Value, rhs.Value, f.binary.type);
+                case NodeType.If:
+                    Node? cond = EvalToNode(ref f.iff.cond, x, y);
+                    if (!cond.HasValue) return null;
+                    if (cond.Value.type != NodeType.boolean) return null;
+                    if (cond.Value.boolean)
+                    {
+                        Node? then = EvalToNode(ref f.iff.then, x, y);
+                        if (!then.HasValue) return null;
+                        return then.Value;
+                    }
+                    else
+                    {
+                        Node? elsee = EvalToNode(ref f.iff.elsee, x, y);
+                        if (!elsee.HasValue) return null;
+                        return elsee.Value;
+                    }
+                case NodeType.triple:
+                    Node? first = EvalToNode(ref f.triple.first, x, y);
                     if (!first.HasValue) return null;
-                    if (first.Value.type != NodeType.Number) return null;
-                    Node? second = EvalToNode(ref f.Triple.second, x, y);
+                    if (first.Value.type != NodeType.number) return null;
+                    Node? second = EvalToNode(ref f.triple.second, x, y);
                     if (!second.HasValue) return null;
-                    if (second.Value.type != NodeType.Number) return null;
-                    Node? third = EvalToNode(ref f.Triple.third, x, y);
+                    if (second.Value.type != NodeType.number) return null;
+                    Node? third = EvalToNode(ref f.triple.third, x, y);
                     if (!third.HasValue) return null;
-                    if (third.Value.type != NodeType.Number) return null;
-                    return NodeTriple(NodeNumber(first.Value.Number), NodeNumber(second.Value.Number), NodeNumber(third.Value.Number));
-                default: throw new Exception("UNREACHABLE(eval)\n");
+                    if (third.Value.type != NodeType.number) return null;
+                    return NodeTriple(NodeNumber(first.Value.number), NodeNumber(second.Value.number), NodeNumber(third.Value.number));
+                default: throw new Exception("UNREACHABLE(EvalToNode)\n");
             }
         }
-        static Color? eval(ref Node f, float x, float y)
+        static Color? Eval(ref Node f, float x, float y)
         {
             Node? c = EvalToNode(ref f, x, y);
 
             if (!c.HasValue) return null;
-            if (c.Value.type != NodeType.Triple) return null;
-            if (c.Value.Triple.first.type != NodeType.Number) return null;
-            if (c.Value.Triple.second.type != NodeType.Number) return null;
-            if (c.Value.Triple.third.type != NodeType.Number) return null;
+            if (c.Value.type != NodeType.triple) return null;
+            if (c.Value.triple.first.type != NodeType.number) return null;
+            if (c.Value.triple.second.type != NodeType.number) return null;
+            if (c.Value.triple.third.type != NodeType.number) return null;
 
-            return ToColor(new(c.Value.Triple.first.Number, c.Value.Triple.second.Number, c.Value.Triple.third.Number));
+            return ToColor(new(c.Value.triple.first.number, c.Value.triple.second.number, c.Value.triple.third.number));
         }
+#pragma warning restore RETURN0001
+#pragma warning restore IDE0079
         static bool GeneratePPM(string FilePath, Func<float, float, Color> f)
         {
             StringBuilder image = new();
@@ -184,7 +242,7 @@ namespace random_art
                 for (int x = 0; x < WIDTH; ++x)
                 {
                     float Normalizedx = ((float)x / WIDTH) * 2 - 1;
-                    Color? c = eval(ref f, Normalizedx, Normalizedy);
+                    Color? c = Eval(ref f, Normalizedx, Normalizedy);
                     if (!c.HasValue)
                         return false;
                     image.Append($"{c.Value.r} {c.Value.g} {c.Value.b}\n");
@@ -193,55 +251,53 @@ namespace random_art
             File.WriteAllText(FilePath, image.ToString());
             return true;
         }
-        static void NodeBinaryPrint(NodeBinary binary)
-        {
-            Console.Write("triple(");
-            NodePrint(ref binary.lhs);
-            Console.Write(", ");
-            NodePrint(ref binary.rhs);
-            Console.Write(")");
-        }
-        static void NodeTriplePrint(NodeTriple triple)
-        {
-            Console.Write("triple(");
-            NodePrint(ref triple.first);
-            Console.Write(", ");
-            NodePrint(ref triple.second);
-            Console.Write(", ");
-            NodePrint(ref triple.third);
-            Console.Write(")");
-        }
-        static void NodePrint(ref Node node)
-        {
-            switch (node.type)
-            {
-                case NodeType.Number:
-                    Console.Write(node.Number);
-                    break;
-                case NodeType.X:
-                    Console.Write("x");
-                    break;
-                case NodeType.Y:
-                    Console.Write("y");
-                    break;
-                case NodeType.Binary:
-                    NodeBinaryPrint(node.Binary);
-                    break;
-                case NodeType.Triple:
-                    NodeTriplePrint(node.Triple);
-                    break;
-                default: throw new Exception("UNREACHABLE(NodePrint)");
-            }
-        }
+        //static void NodeBinaryPrint(NodeBinary binary)
+        //{
+        //    Console.Write("triple(");
+        //    NodePrint(ref binary.lhs);
+        //    Console.Write(", ");
+        //    NodePrint(ref binary.rhs);
+        //    Console.Write(")");
+        //}
+        //static void NodeTriplePrint(NodeTriple triple)
+        //{
+        //    Console.Write("triple(");
+        //    NodePrint(ref triple.first);
+        //    Console.Write(", ");
+        //    NodePrint(ref triple.second);
+        //    Console.Write(", ");
+        //    NodePrint(ref triple.third);
+        //    Console.Write(")");
+        //}
+        //static void NodePrint(ref Node node)
+        //{
+        //    switch (node.type)
+        //    {
+        //        case NodeType.number:
+        //            Console.Write(node.number);
+        //            break;
+        //        case NodeType.X:
+        //            Console.Write("x");
+        //            break;
+        //        case NodeType.Y:
+        //            Console.Write("y");
+        //            break;
+        //        case NodeType.binary:
+        //            NodeBinaryPrint(node.binary);
+        //            break;
+        //        case NodeType.triple:
+        //            NodeTriplePrint(node.triple);
+        //            break;
+        //        default: throw new Exception("UNREACHABLE(NodePrint)");
+        //    }
+        //}
         static Color GenColorFromCoord(float x, float y)
         {
-            Vector3 v = new(x, y, x - y);
-            return ToColor(v);
-            //if (x * y >= 0) return ToColor(new(x, y, 1));
-            //float t = x % y;
-            //return ToColor(new(t, t, t));
+            if (x * y > 0) return ToColor(new(x, y, 1));
+            float t = x % y;
+            return ToColor(new(t, t, t));
         }
-        static int Main(string[] args)
+        static int Main(/*string[] args*/)
         {
             string FilePath = "output.ppm";
 
@@ -251,8 +307,15 @@ namespace random_art
                 return 1;
             }
 
-            Node f = NodeTriple(NodeX(), NodeY(), NodeSUB(NodeX(), NodeY()));
-            //Node f = NodeX();
+            //Node f = NodeIf(
+            //    NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
+            //    NodeTriple(NodeX(), NodeY(), NodeNumber(1)),
+            //    NodeTriple(NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()))
+            //    );
+            Node f = NodeTriple(
+                NodeIf(NodeX(), NodeX(), NodeY()),
+                NodeX(),
+                NodeY());
             if (!GeneratePPM("output2.ppm", ref f))
             {
                 Log(LogType.ERROR, "Could not Generate PPM image");
