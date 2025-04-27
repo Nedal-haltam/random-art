@@ -6,6 +6,9 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
 
+#pragma warning disable IDE0079 // Remove unnecessary suppression
+#pragma warning disable RETURN0001
+#pragma warning restore IDE0079 // Remove unnecessary suppression
 namespace random_art
 {
     public struct Color(byte r, byte g, byte b, byte a = 255)
@@ -143,18 +146,18 @@ namespace random_art
         }
         static Node EvalBinary(Node lhs, Node rhs, NodeBinaryType type)
         {
-            return type switch
+#pragma warning disable IDE0066 // Convert switch statement to expression
+            switch (type)
             {
-                NodeBinaryType.ADD => NodeNumber(lhs.number + rhs.number),
-                NodeBinaryType.SUB => NodeNumber(lhs.number - rhs.number),
-                NodeBinaryType.MUL => NodeNumber(lhs.number * rhs.number),
-                NodeBinaryType.MOD => NodeNumber(lhs.number % rhs.number),
-                NodeBinaryType.GT => NodeBoolean(lhs.number > rhs.number),
-                _ => throw new Exception("UNREACHABLE(EvalBinary)\n"),
+                case NodeBinaryType.ADD: return NodeNumber(lhs.number + rhs.number);
+                case NodeBinaryType.SUB: return NodeNumber(lhs.number - rhs.number);
+                case NodeBinaryType.MUL: return NodeNumber(lhs.number * rhs.number);
+                case NodeBinaryType.MOD: return NodeNumber(lhs.number % rhs.number);
+                case NodeBinaryType.GT: return NodeBoolean(lhs.number > rhs.number);
+                default: throw new Exception("UNREACHABLE(EvalBinary)\n");
             };
+#pragma warning restore IDE0066 // Convert switch statement to expression
         }
-#pragma warning disable IDE0079
-#pragma warning disable RETURN0001
         static Node? EvalToNode(ref Node f, float x, float y)
         {
             switch (f.type)
@@ -213,8 +216,6 @@ namespace random_art
 
             return ToColor(new(c.Value.triple.first.number, c.Value.triple.second.number, c.Value.triple.third.number));
         }
-#pragma warning restore RETURN0001
-#pragma warning restore IDE0079
         static bool GeneratePPM(string FilePath, Func<float, float, Color> f)
         {
             StringBuilder image = new();
