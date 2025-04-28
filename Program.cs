@@ -361,6 +361,15 @@ namespace random_art
         }
         static int Main(/*string[] args*/)
         {
+            // TODO:
+                //- You need a way to save and load the grammar (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
+                //- You need a way to save and load the random function 
+                //	- in a format so you can read it later and reuse it in the program
+                //	- or same way of grammar handling
+                //- A random grammar generator
+                //	- you need rules for generation
+                //- And for any of that to happen, you need a format (struct/class) for the grammars that is generated or possibly hardcoded
+                //- try GPU and shaders to generate the image
             Node f;
             //f = NodeIf(
             //    NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
