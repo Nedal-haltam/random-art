@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Diagnostics.Contracts;
 using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml;
+using static System.Net.Mime.MediaTypeNames;
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable RETURN0001
@@ -55,8 +57,6 @@ namespace random_art
     }
     internal sealed class Program
     {
-        const int WIDTH = 256;
-        const int HEIGHT = 256;
         static Color ToColor(Vector3 v, float min = -1, float max = 1)
         {
             // min..max
@@ -233,22 +233,50 @@ namespace random_art
             File.WriteAllText(FilePath, image.ToString());
             return true;
         }
-        static bool GeneratePPM(string FilePath, ref Node f)
+        static StringBuilder Foo(Node f, int start, int end)
         {
-            StringBuilder image = new();
-            image.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
-            for (int y = 0; y < HEIGHT; ++y)
+            StringBuilder output = new();
+            for (int y = start; y < end; ++y)
             {
                 float Normalizedy = ((float)y / HEIGHT) * 2 - 1;
                 for (int x = 0; x < WIDTH; ++x)
                 {
                     float Normalizedx = ((float)x / WIDTH) * 2 - 1;
                     Color? c = Eval(ref f, Normalizedx, Normalizedy);
-                    if (!c.HasValue)
-                        return false;
-                    image.Append($"{c.Value.r} {c.Value.g} {c.Value.b}\n");
+                    //if (!c.HasValue)
+                    //    return false;
+                    output.Append($"{c.Value.r} {c.Value.g} {c.Value.b}\n");
                 }
             }
+            return output;
+        }
+        const int WIDTH  = 12 * 22;
+        const int HEIGHT = 12 * 22;
+        static bool GeneratePPM(string FilePath, Node f)
+        {
+            //StringBuilder a = new();
+            //a.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
+            //a = a.Append(Foo(f, 0, HEIGHT));
+            //File.WriteAllText(FilePath, a.ToString());
+            //return true;
+            StringBuilder image = new();
+            image.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
+            int taskCount = 12;
+            int portion = HEIGHT / taskCount;
+            var tasks = new List<Task<StringBuilder>>();
+
+            for (int i = 0; i < taskCount; ++i)
+            {
+                tasks.Add(Task.Run(() => Foo(f, i * portion, (i + 1) * portion)));
+            }
+
+            Task.WaitAll([.. tasks]);
+
+            foreach (var task in tasks)
+            {
+                image.Append(task.Result);
+            }
+
             File.WriteAllText(FilePath, image.ToString());
             return true;
         }
@@ -306,12 +334,6 @@ namespace random_art
                 default: throw new Exception("UNREACHABLE(NodePrint)");
             }
         }
-        static Color GenColorFromCoord(float x, float y)
-        {
-            if (x * y > 0) return ToColor(new(x, y, 1));
-            float t = x % y;
-            return ToColor(new(t, t, t));
-        }
         static readonly Random r = new();
         static Node GenNode(int depth)
         {
@@ -325,42 +347,41 @@ namespace random_art
                 else if (tt == 3)
                     return NodeNumber(r.NextSingle()*2 - 1);
             }
-            int t = 1 + r.Next(4);
+            int t = r.Next(5);
             switch (t)
             {
+                case 0:
                 case 1: return NodeADD(GenNode(depth - 1), GenNode(depth - 1));
                 case 2: return NodeSUB(GenNode(depth - 1), GenNode(depth - 1));
+                case 4: 
                 case 3: return NodeMUL(GenNode(depth - 1), GenNode(depth - 1));
-                case 4: return NodeMOD(GenNode(depth - 1), GenNode(depth - 1));
+                //case 4: return NodeMOD(GenNode(depth - 1), GenNode(depth - 1));
                 default: throw new Exception();
             }
         }
         static int Main(/*string[] args*/)
         {
-            // TODO: check if we can get other things out of the result of NodeIf maybe NodeX
-            // TODO: print NodeIf better, do better printing in general
-            Node f = NodeIf(
-                NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
-                NodeTriple(NodeX(), NodeY(), NodeNumber(1)),
-                NodeTriple(NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()))
-                );
+            Node f;
+            //f = NodeIf(
+            //    NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
+            //    NodeTriple(NodeX(), NodeY(), NodeNumber(1)),
+            //    NodeTriple(NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()))
+            //    );
+            int d = 10;
+            f = NodeTriple(GenNode(d), GenNode(d), GenNode(d));
+            Log(LogType.INFO, "Generating the function is done\n");
             NodePrint(ref f);
-            return 0;
-            //int depth = 5;
-            //Node f = NodeTriple(GenNode(depth), GenNode(depth), GenNode(depth));
 
-            if (!GeneratePPM("output.ppm", GenColorFromCoord))
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            if (!GeneratePPM("output2.ppm", f))
             {
                 Log(LogType.ERROR, "Could not Generate PPM image");
                 return 1;
             }
-            if (!GeneratePPM("output2.ppm", ref f))
-            {
-                Log(LogType.ERROR, "Could not Generate PPM image");
-                return 1;
-            }
-
             Log(LogType.INFO, $"PPM image generated\n");
+            stopwatch.Stop();
+            long ms = stopwatch.ElapsedMilliseconds;
+            Console.WriteLine($"time taken: {(float)ms / 1000}\n");
             return 0;
         }
     }
