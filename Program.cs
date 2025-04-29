@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading.Tasks;
 using System.Xml;
 using static System.Net.Mime.MediaTypeNames;
 
@@ -22,15 +23,16 @@ namespace random_art
     }
     public enum NodeType
     {
-        number, X, Y, If, boolean, binary, triple
-    }
-    public enum NodeBinaryType
-    {
+        number, X, Y, boolean,
+
         ADD, MUL, SUB, GT, MOD,
+
+        triple,
+        If,
+
     }
-    public sealed class NodeBinary(NodeBinaryType type, Node lhs, Node rhs)
+    public sealed class NodeBinary(Node lhs, Node rhs)
     {
-        public NodeBinaryType type = type;
         public Node lhs = lhs;
         public Node rhs = rhs;
     }
@@ -62,8 +64,8 @@ namespace random_art
             // min..max
             // 0..255
             return new(
-                (byte)((v.X - min) * (255.0f / (max - min))), 
-                (byte)((v.Y - min) * (255.0f / (max - min))), 
+                (byte)((v.X - min) * (255.0f / (max - min))),
+                (byte)((v.Y - min) * (255.0f / (max - min))),
                 (byte)((v.Z - min) * (255.0f / (max - min))));
         }
 
@@ -115,25 +117,25 @@ namespace random_art
         }
         static Node NodeADD(Node lhs, Node rhs)
         {
-            return new Node() { type = NodeType.binary, binary = new(NodeBinaryType.ADD, lhs, rhs) };
+            return new Node() { type = NodeType.ADD, binary = new(lhs, rhs) };
         }
         static Node NodeSUB(Node lhs, Node rhs)
         {
-            return new Node() { type = NodeType.binary, binary = new(NodeBinaryType.SUB, lhs, rhs) };
+            return new Node() { type = NodeType.SUB, binary = new(lhs, rhs) };
         }
         static Node NodeMUL(Node lhs, Node rhs)
         {
-            return new Node() { type = NodeType.binary, binary = new(NodeBinaryType.MUL, lhs, rhs) };
+            return new Node() { type = NodeType.MUL, binary = new(lhs, rhs) };
         }
         static Node NodeMOD(Node lhs, Node rhs)
         {
-            return new Node() { type = NodeType.binary, binary = new(NodeBinaryType.MOD, lhs, rhs) };
+            return new Node() { type = NodeType.MOD, binary = new(lhs, rhs) };
         }
 
 
         static Node NodeGT(Node lhs, Node rhs)
         {
-            return new Node() { type = NodeType.binary, binary = new(NodeBinaryType.GT, lhs, rhs) };
+            return new Node() { type = NodeType.GT, binary = new(lhs, rhs) };
         }
 
         static Node NodeIf(Node cond, Node then, Node elsee)
@@ -144,18 +146,25 @@ namespace random_art
         {
             return new Node() { type = NodeType.triple, triple = new(first, second, third) };
         }
-        static Node EvalBinary(Node lhs, Node rhs, NodeBinaryType type)
+        static Node EvalBinary(Node lhs, Node rhs, NodeType type)
         {
 #pragma warning disable IDE0066 // Convert switch statement to expression
             switch (type)
             {
-                case NodeBinaryType.ADD: return NodeNumber(lhs.number + rhs.number);
-                case NodeBinaryType.SUB: return NodeNumber(lhs.number - rhs.number);
-                case NodeBinaryType.MUL: return NodeNumber(lhs.number * rhs.number);
-                case NodeBinaryType.MOD: return NodeNumber(lhs.number % rhs.number);
-                case NodeBinaryType.GT: return NodeBoolean(lhs.number > rhs.number);
+                case NodeType.ADD: return NodeNumber(lhs.number + rhs.number);
+                case NodeType.SUB: return NodeNumber(lhs.number - rhs.number);
+                case NodeType.MUL: return NodeNumber(lhs.number * rhs.number);
+                case NodeType.MOD: return NodeNumber(lhs.number % rhs.number);
+                case NodeType.GT: return NodeBoolean(lhs.number > rhs.number);
+                case NodeType.number:
+                case NodeType.boolean:
+                case NodeType.X:
+                case NodeType.Y:
+                case NodeType.If:
+                case NodeType.triple:
                 default: throw new Exception("UNREACHABLE(EvalBinary)\n");
-            };
+            }
+            ;
 #pragma warning restore IDE0066 // Convert switch statement to expression
         }
         static Node? EvalToNode(ref Node f, float x, float y)
@@ -166,14 +175,18 @@ namespace random_art
                 case NodeType.boolean: return f;
                 case NodeType.X: return NodeNumber(x);
                 case NodeType.Y: return NodeNumber(y);
-                case NodeType.binary:
+                case NodeType.ADD:
+                case NodeType.SUB:
+                case NodeType.MUL:
+                case NodeType.MOD:
+                case NodeType.GT:
                     Node? lhs = EvalToNode(ref f.binary.lhs, x, y);
                     if (!lhs.HasValue) return null;
                     if (lhs.Value.type != NodeType.number) return null;
                     Node? rhs = EvalToNode(ref f.binary.rhs, x, y);
                     if (!rhs.HasValue) return null;
                     if (rhs.Value.type != NodeType.number) return null;
-                    return EvalBinary(lhs.Value, rhs.Value, f.binary.type);
+                    return EvalBinary(lhs.Value, rhs.Value, f.type);
                 case NodeType.If:
                     Node? cond = EvalToNode(ref f.iff.cond, x, y);
                     if (!cond.HasValue) return null;
@@ -244,49 +257,49 @@ namespace random_art
                     float Normalizedx = ((float)x / WIDTH) * 2 - 1;
                     Color? c = Eval(ref f, Normalizedx, Normalizedy);
                     //if (!c.HasValue)
-                    //    return false;
+                    //    return new();
                     output.Append($"{c.Value.r} {c.Value.g} {c.Value.b}\n");
                 }
             }
             return output;
         }
-        const int WIDTH  = 12 * 22;
-        const int HEIGHT = 12 * 22;
+        const int taskCount = 10;
+        const int WIDTH = 10 * 80;
+        const int HEIGHT = 10 * 80;
         static bool GeneratePPM(string FilePath, Node f)
         {
-            //StringBuilder a = new();
-            //a.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
-            //a = a.Append(Foo(f, 0, HEIGHT));
-            //File.WriteAllText(FilePath, a.ToString());
-            //return true;
+            StringBuilder a = new();
+            a.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
+            a = a.Append(Foo(f, 0, HEIGHT));
+            File.WriteAllText(FilePath, a.ToString());
+            return true;
+
+
+        }
+        static bool TaskGeneratePPM(string FilePath, Node f)
+        {
             StringBuilder image = new();
             image.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
-            int taskCount = 12;
             int portion = HEIGHT / taskCount;
-            var tasks = new List<Task<StringBuilder>>();
 
+            var tasks = new List<Task<StringBuilder>>();
+            Task<StringBuilder> t = new(() => Foo(f, 0, 234));
             for (int i = 0; i < taskCount; ++i)
             {
                 tasks.Add(Task.Run(() => Foo(f, i * portion, (i + 1) * portion)));
+                //tasks.Add(new(() => Foo(f, i * portion, (i + 1) * portion)));
             }
 
             Task.WaitAll([.. tasks]);
 
-            foreach (var task in tasks)
+            for (int i = 0; i < tasks.Count; i++)
             {
-                image.Append(task.Result);
+                StringBuilder PortionResult = tasks[i].Result;
+                image.Append(PortionResult);
             }
 
             File.WriteAllText(FilePath, image.ToString());
             return true;
-        }
-        static void NodeBinaryPrint(ref NodeBinary binary)
-        {
-            Console.Write($"{binary.type}(");
-            NodePrint(ref binary.lhs);
-            Console.Write(", ");
-            NodePrint(ref binary.rhs);
-            Console.Write(")");
         }
         static void NodeTriplePrint(ref NodeTriple triple)
         {
@@ -311,8 +324,16 @@ namespace random_art
                 case NodeType.Y:
                     Console.Write("y");
                     break;
-                case NodeType.binary:
-                    NodeBinaryPrint(ref node.binary);
+                case NodeType.ADD:
+                case NodeType.SUB:
+                case NodeType.MUL:
+                case NodeType.MOD:
+                case NodeType.GT:
+                    Console.Write($"{node.type}(");
+                    NodePrint(ref node.binary.lhs);
+                    Console.Write(", ");
+                    NodePrint(ref node.binary.rhs);
+                    Console.Write(")");
                     break;
                 case NodeType.If:
                     Console.Write($"if (");
@@ -334,6 +355,11 @@ namespace random_art
                 default: throw new Exception("UNREACHABLE(NodePrint)");
             }
         }
+        static void NodePrintln(ref Node node)
+        {
+            NodePrint(ref node);
+            Console.WriteLine();
+        }
         static readonly Random r = new();
         static Node GenNode(int depth)
         {
@@ -345,7 +371,7 @@ namespace random_art
                 else if (tt == 2)
                     return NodeY();
                 else if (tt == 3)
-                    return NodeNumber(r.NextSingle()*2 - 1);
+                    return NodeNumber(r.NextSingle() * 2 - 1);
             }
             int t = r.Next(5);
             switch (t)
@@ -353,33 +379,39 @@ namespace random_art
                 case 0:
                 case 1: return NodeADD(GenNode(depth - 1), GenNode(depth - 1));
                 case 2: return NodeSUB(GenNode(depth - 1), GenNode(depth - 1));
-                case 4: 
+                case 4:
                 case 3: return NodeMUL(GenNode(depth - 1), GenNode(depth - 1));
                 //case 4: return NodeMOD(GenNode(depth - 1), GenNode(depth - 1));
                 default: throw new Exception();
             }
         }
+        static Node LoadBasicNode()
+        {
+            return NodeIf(
+                NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
+                NodeTriple(NodeX(), NodeY(), NodeNumber(1)),
+                NodeTriple(NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()))
+                );
+        }
+        static Node LoadFromGrammar(int depth)
+        {
+            return NodeTriple(GenNode(depth), GenNode(depth), GenNode(depth));
+        }
         static int Main(/*string[] args*/)
         {
             // TODO:
-                //- You need a way to save and load the grammar (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
-                //- You need a way to save and load the random function 
-                //	- in a format so you can read it later and reuse it in the program
-                //	- or same way of grammar handling
-                //- A random grammar generator
-                //	- you need rules for generation
-                //- And for any of that to happen, you need a format (struct/class) for the grammars that is generated or possibly hardcoded
-                //- try GPU and shaders to generate the image
-            Node f;
-            //f = NodeIf(
-            //    NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
-            //    NodeTriple(NodeX(), NodeY(), NodeNumber(1)),
-            //    NodeTriple(NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()))
-            //    );
-            int d = 10;
-            f = NodeTriple(GenNode(d), GenNode(d), GenNode(d));
+            //- You need a way to save and load the grammar (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
+            //- You need a way to save and load the random function 
+            //	- in a format so you can read it later and reuse it in the program
+            //	- or same way of grammar handling
+            //- A random grammar generator
+            //	- you need rules for generation
+            //- And for any of that to happen, you need a format (struct/class) for the grammars that is generated or possibly hardcoded
+            //- try GPU and shaders to generate the image
+            Node f = LoadFromGrammar(5);
+            NodePrintln(ref f);
+            //Node f = NodeTriple(NodeX(), NodeX(), NodeX());
             Log(LogType.INFO, "Generating the function is done\n");
-            NodePrint(ref f);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             if (!GeneratePPM("output2.ppm", f))
