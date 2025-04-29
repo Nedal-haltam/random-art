@@ -25,7 +25,9 @@ namespace random_art
     {
         number, X, Y, boolean,
 
-        ADD, MUL, SUB, GT, MOD,
+        ADD, MUL, SUB, GT, MOD, DIV,
+
+        SQRT,
 
         triple,
         If,
@@ -35,6 +37,10 @@ namespace random_art
     {
         public Node lhs = lhs;
         public Node rhs = rhs;
+    }
+    public sealed class NodeUnary(Node expr)
+    {
+        public Node expr = expr;
     }
     public sealed class NodeTriple(Node first, Node second, Node third)
     {
@@ -53,6 +59,7 @@ namespace random_art
         public NodeType type;
         public float number;
         public bool boolean;
+        public NodeUnary unary;
         public NodeBinary binary;
         public NodeTriple triple;
         public NodeIf iff;
@@ -73,7 +80,7 @@ namespace random_art
         {
             INFO, WARNING, ERROR
         }
-        public static void Log(LogType type, string msg)
+        static void Log(LogType type, string msg)
         {
             ConsoleColor before = Console.ForegroundColor;
             string head;
@@ -91,13 +98,18 @@ namespace random_art
                     Console.ForegroundColor = ConsoleColor.Red;
                     head = "ERROR: ";
                     break;
-                default: throw new Exception("UNREACHABLE(Log)\n");
+                default: 
+                    UNREACHABLE("Log");
+                    return;
             }
             Console.Write(head + msg);
             Console.ForegroundColor = before;
         }
-
-
+        static void UNREACHABLE(string msg)
+        {
+            Log(LogType.ERROR, $"UNREACHABLE: {msg}\n");
+            Environment.Exit(1);
+        }
 
         static Node NodeNumber(float number)
         {
@@ -115,9 +127,17 @@ namespace random_art
         {
             return new Node() { type = NodeType.Y };
         }
+        static Node NodeSQRT(Node expr)
+        {
+            return new Node() { type = NodeType.SQRT, unary = new(expr) };
+        }
         static Node NodeADD(Node lhs, Node rhs)
         {
             return new Node() { type = NodeType.ADD, binary = new(lhs, rhs) };
+        }
+        static Node NodeDIV(Node lhs, Node rhs)
+        {
+            return new Node() { type = NodeType.DIV, binary = new(lhs, rhs) };
         }
         static Node NodeSUB(Node lhs, Node rhs)
         {
@@ -156,16 +176,41 @@ namespace random_art
                 case NodeType.MUL: return NodeNumber(lhs.number * rhs.number);
                 case NodeType.MOD: return NodeNumber(lhs.number % rhs.number);
                 case NodeType.GT: return NodeBoolean(lhs.number > rhs.number);
+                case NodeType.DIV: return NodeNumber((rhs.number == 0) ? lhs.number : lhs.number / rhs.number);
+                case NodeType.SQRT:
                 case NodeType.number:
                 case NodeType.boolean:
                 case NodeType.X:
                 case NodeType.Y:
                 case NodeType.If:
                 case NodeType.triple:
-                default: throw new Exception("UNREACHABLE(EvalBinary)\n");
-            }
-            ;
+                default: 
+                    UNREACHABLE("EvalBinary");
+                    return new();
+            };
 #pragma warning restore IDE0066 // Convert switch statement to expression
+        }
+        static Node EvalUnary(Node expr, NodeType type)
+        {
+            switch (type)
+            {
+                case NodeType.SQRT: return NodeNumber(MathF.Sqrt(MathF.Abs(expr.number)));
+                case NodeType.ADD:
+                case NodeType.SUB:
+                case NodeType.MUL:
+                case NodeType.MOD:
+                case NodeType.GT:
+                case NodeType.DIV:
+                case NodeType.number:
+                case NodeType.boolean:
+                case NodeType.X:
+                case NodeType.Y:
+                case NodeType.If:
+                case NodeType.triple:
+                default: 
+                    UNREACHABLE("EvalUnary");
+                    return new();
+            }
         }
         static Node? EvalToNode(ref Node f, float x, float y)
         {
@@ -175,11 +220,17 @@ namespace random_art
                 case NodeType.boolean: return f;
                 case NodeType.X: return NodeNumber(x);
                 case NodeType.Y: return NodeNumber(y);
+                case NodeType.SQRT:
+                    Node? expr = EvalToNode(ref f.unary.expr, x, y);
+                    if (!expr.HasValue) return null;
+                    if (expr.Value.type != NodeType.number) return null;
+                    return EvalUnary(expr.Value, f.type);
                 case NodeType.ADD:
                 case NodeType.SUB:
                 case NodeType.MUL:
                 case NodeType.MOD:
                 case NodeType.GT:
+                case NodeType.DIV:
                     Node? lhs = EvalToNode(ref f.binary.lhs, x, y);
                     if (!lhs.HasValue) return null;
                     if (lhs.Value.type != NodeType.number) return null;
@@ -214,7 +265,9 @@ namespace random_art
                     if (!third.HasValue) return null;
                     if (third.Value.type != NodeType.number) return null;
                     return NodeTriple(NodeNumber(first.Value.number), NodeNumber(second.Value.number), NodeNumber(third.Value.number));
-                default: throw new Exception("UNREACHABLE(EvalToNode)\n");
+                default: 
+                    UNREACHABLE("EvalToNode");
+                    return new();
             }
         }
         static Color? Eval(ref Node f, float x, float y)
@@ -256,8 +309,8 @@ namespace random_art
                 {
                     float Normalizedx = ((float)x / WIDTH) * 2 - 1;
                     Color? c = Eval(ref f, Normalizedx, Normalizedy);
-                    //if (!c.HasValue)
-                    //    return new();
+                    if (!c.HasValue)
+                        return new();
                     output.Append($"{c.Value.r} {c.Value.g} {c.Value.b}\n");
                 }
             }
@@ -268,13 +321,14 @@ namespace random_art
         const int HEIGHT = 10 * 80;
         static bool GeneratePPM(string FilePath, Node f)
         {
-            StringBuilder a = new();
-            a.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
-            a = a.Append(Foo(f, 0, HEIGHT));
-            File.WriteAllText(FilePath, a.ToString());
+            StringBuilder image = new();
+            image.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
+            StringBuilder rgbs = Foo(f, 0, HEIGHT);
+            if (rgbs.Length == 0)
+                return false;
+            image = image.Append(rgbs);
+            File.WriteAllText(FilePath, image.ToString());
             return true;
-
-
         }
         static bool TaskGeneratePPM(string FilePath, Node f)
         {
@@ -324,11 +378,17 @@ namespace random_art
                 case NodeType.Y:
                     Console.Write("y");
                     break;
+                case NodeType.SQRT:
+                    Console.Write($"{node.type}(");
+                    NodePrint(ref node.unary.expr); 
+                    Console.Write(")");
+                    break;
                 case NodeType.ADD:
                 case NodeType.SUB:
                 case NodeType.MUL:
                 case NodeType.MOD:
                 case NodeType.GT:
+                case NodeType.DIV:
                     Console.Write($"{node.type}(");
                     NodePrint(ref node.binary.lhs);
                     Console.Write(", ");
@@ -352,7 +412,9 @@ namespace random_art
                 case NodeType.triple:
                     NodeTriplePrint(ref node.triple);
                     break;
-                default: throw new Exception("UNREACHABLE(NodePrint)");
+                default: 
+                    UNREACHABLE("NodePrint");
+                    return;
             }
         }
         static void NodePrintln(ref Node node)
@@ -373,16 +435,18 @@ namespace random_art
                 else if (tt == 3)
                     return NodeNumber(r.NextSingle() * 2 - 1);
             }
-            int t = r.Next(5);
+            int t = r.Next(6);
             switch (t)
             {
-                case 0:
-                case 1: return NodeADD(GenNode(depth - 1), GenNode(depth - 1));
-                case 2: return NodeSUB(GenNode(depth - 1), GenNode(depth - 1));
-                case 4:
-                case 3: return NodeMUL(GenNode(depth - 1), GenNode(depth - 1));
-                //case 4: return NodeMOD(GenNode(depth - 1), GenNode(depth - 1));
-                default: throw new Exception();
+                case 0: return NodeADD(GenNode(depth - 1), GenNode(depth - 1));
+                case 1: return NodeSUB(GenNode(depth - 1), GenNode(depth - 1));
+                case 2: return NodeMUL(GenNode(depth - 1), GenNode(depth - 1));
+                case 3: return NodeDIV(GenNode(depth - 1), GenNode(depth - 1));
+                case 4: return NodeMOD(GenNode(depth - 1), GenNode(depth - 1));
+                case 5: return NodeSQRT(GenNode(depth - 1));
+                default: 
+                    UNREACHABLE("GenNode");
+                    return new();
             }
         }
         static Node LoadBasicNode()
@@ -397,21 +461,29 @@ namespace random_art
         {
             return NodeTriple(GenNode(depth), GenNode(depth), GenNode(depth));
         }
-        static int Main(/*string[] args*/)
+        static int Main(string[] args)
         {
+            List<string> argslist = [.. args];
+
             // TODO:
-            //- You need a way to save and load the grammar (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
             //- You need a way to save and load the random function 
             //	- in a format so you can read it later and reuse it in the program
             //	- or same way of grammar handling
+            //- You need a way to save and load the grammar (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
             //- A random grammar generator
             //	- you need rules for generation
+
             //- And for any of that to happen, you need a format (struct/class) for the grammars that is generated or possibly hardcoded
+
             //- try GPU and shaders to generate the image
-            Node f = LoadFromGrammar(5);
-            NodePrintln(ref f);
+            //Node f = LoadBasicNode();
+            Node f = LoadFromGrammar(10);
+            //Node f = NodeX();
             //Node f = NodeTriple(NodeX(), NodeX(), NodeX());
             Log(LogType.INFO, "Generating the function is done\n");
+
+            Console.WriteLine("function: ");
+            NodePrintln(ref f);
 
             Stopwatch stopwatch = Stopwatch.StartNew();
             if (!GeneratePPM("output2.ppm", f))
