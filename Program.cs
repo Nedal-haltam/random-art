@@ -4,6 +4,9 @@ using System.Text;
 using static random_art.Program;
 using Raylib_cs;
 using Color = Raylib_cs.Color;
+using System.Reflection.Metadata;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using System;
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable RETURN0001
@@ -12,13 +15,13 @@ namespace random_art
 {
     public enum NodeType
     {
-        number, X, Y, boolean,
+        Number, random, X, Y, Boolean,
 
-        ADD, MUL, SUB, GT, MOD, DIV,
+        ADD, MUL, SUB, GT, GTE, MOD, DIV,
 
         SQRT,
 
-        triple,
+        Triple,
         If,
 
     }
@@ -102,15 +105,19 @@ namespace random_art
 
         static Node NodeNumber(float number)
         {
-            return new Node() { type = NodeType.number, number = number };
+            return new Node() { type = NodeType.Number, number = number };
         }
         static Node NodeBoolean(bool boolean)
         {
-            return new Node() { type = NodeType.boolean, boolean = boolean };
+            return new Node() { type = NodeType.Boolean, boolean = boolean };
         }
         static Node NodeX()
         {
             return new Node() { type = NodeType.X };
+        }
+        static Node NodeRandom()
+        {
+            return new Node() { type = NodeType.random, number = r.NextSingle() * 2 - 1 };
         }
         static Node NodeY()
         {
@@ -146,6 +153,10 @@ namespace random_art
         {
             return new Node() { type = NodeType.GT, binary = new(lhs, rhs) };
         }
+        static Node NodeGTE(Node lhs, Node rhs)
+        {
+            return new Node() { type = NodeType.GTE, binary = new(lhs, rhs) };
+        }
 
         static Node NodeIf(Node cond, Node then, Node elsee)
         {
@@ -153,7 +164,7 @@ namespace random_art
         }
         static Node NodeTriple(Node first, Node second, Node third)
         {
-            return new Node() { type = NodeType.triple, triple = new(first, second, third) };
+            return new Node() { type = NodeType.Triple, triple = new(first, second, third) };
         }
         static Node EvalBinary(Node lhs, Node rhs, NodeType type)
         {
@@ -165,14 +176,16 @@ namespace random_art
                 case NodeType.MUL: return NodeNumber(lhs.number * rhs.number);
                 case NodeType.MOD: return NodeNumber(lhs.number % rhs.number);
                 case NodeType.GT: return NodeBoolean(lhs.number > rhs.number);
+                case NodeType.GTE: return NodeBoolean(lhs.number >= rhs.number);
                 case NodeType.DIV: return NodeNumber((rhs.number == 0) ? lhs.number : lhs.number / rhs.number);
                 case NodeType.SQRT:
-                case NodeType.number:
-                case NodeType.boolean:
+                case NodeType.Number:
+                case NodeType.random:
+                case NodeType.Boolean:
                 case NodeType.X:
                 case NodeType.Y:
                 case NodeType.If:
-                case NodeType.triple:
+                case NodeType.Triple:
                 default: 
                     UNREACHABLE("EvalBinary");
                     return new();
@@ -189,13 +202,15 @@ namespace random_art
                 case NodeType.MUL:
                 case NodeType.MOD:
                 case NodeType.GT:
+                case NodeType.GTE:
                 case NodeType.DIV:
-                case NodeType.number:
-                case NodeType.boolean:
+                case NodeType.Number:
+                case NodeType.random:
+                case NodeType.Boolean:
                 case NodeType.X:
                 case NodeType.Y:
                 case NodeType.If:
-                case NodeType.triple:
+                case NodeType.Triple:
                 default: 
                     UNREACHABLE("EvalUnary");
                     return new();
@@ -205,32 +220,34 @@ namespace random_art
         {
             switch (f.type)
             {
-                case NodeType.number:
-                case NodeType.boolean: return f;
+                case NodeType.random: return NodeNumber(f.number);
+                case NodeType.Number:
+                case NodeType.Boolean: return f;
                 case NodeType.X: return NodeNumber(x);
                 case NodeType.Y: return NodeNumber(y);
                 case NodeType.SQRT:
                     Node? expr = EvalToNode(ref f.unary.expr, x, y);
                     if (!expr.HasValue) return null;
-                    if (expr.Value.type != NodeType.number) return null;
+                    if (expr.Value.type != NodeType.Number) return null;
                     return EvalUnary(expr.Value, f.type);
                 case NodeType.ADD:
                 case NodeType.SUB:
                 case NodeType.MUL:
                 case NodeType.MOD:
                 case NodeType.GT:
+                case NodeType.GTE:
                 case NodeType.DIV:
                     Node? lhs = EvalToNode(ref f.binary.lhs, x, y);
                     if (!lhs.HasValue) return null;
-                    if (lhs.Value.type != NodeType.number) return null;
+                    if (lhs.Value.type != NodeType.Number) return null;
                     Node? rhs = EvalToNode(ref f.binary.rhs, x, y);
                     if (!rhs.HasValue) return null;
-                    if (rhs.Value.type != NodeType.number) return null;
+                    if (rhs.Value.type != NodeType.Number) return null;
                     return EvalBinary(lhs.Value, rhs.Value, f.type);
                 case NodeType.If:
                     Node? cond = EvalToNode(ref f.iff.cond, x, y);
                     if (!cond.HasValue) return null;
-                    if (cond.Value.type != NodeType.boolean) return null;
+                    if (cond.Value.type != NodeType.Boolean) return null;
                     if (cond.Value.boolean)
                     {
                         Node? then = EvalToNode(ref f.iff.then, x, y);
@@ -243,50 +260,38 @@ namespace random_art
                         if (!elsee.HasValue) return null;
                         return elsee.Value;
                     }
-                case NodeType.triple:
+                case NodeType.Triple:
                     Node? first = EvalToNode(ref f.triple.first, x, y);
                     if (!first.HasValue) return null;
-                    if (first.Value.type != NodeType.number) return null;
+                    if (first.Value.type != NodeType.Number) return null;
                     Node? second = EvalToNode(ref f.triple.second, x, y);
                     if (!second.HasValue) return null;
-                    if (second.Value.type != NodeType.number) return null;
+                    if (second.Value.type != NodeType.Number) return null;
                     Node? third = EvalToNode(ref f.triple.third, x, y);
                     if (!third.HasValue) return null;
-                    if (third.Value.type != NodeType.number) return null;
+                    if (third.Value.type != NodeType.Number) return null;
                     return NodeTriple(NodeNumber(first.Value.number), NodeNumber(second.Value.number), NodeNumber(third.Value.number));
                 default: 
                     UNREACHABLE("EvalToNode");
                     return new();
             }
         }
-        static Color? Eval(ref Node f, float x, float y)
+        static Color? Eval(ref Node f, float x, float y, float min = -1, float max = 1)
         {
             Node? c = EvalToNode(ref f, x, y);
 
-            if (!c.HasValue) return null;
-            if (c.Value.type != NodeType.triple) return null;
-            if (c.Value.triple.first.type != NodeType.number) return null;
-            if (c.Value.triple.second.type != NodeType.number) return null;
-            if (c.Value.triple.third.type != NodeType.number) return null;
+            if (!c.HasValue) 
+                return null;
+            if (c.Value.type != NodeType.Triple) 
+                return null;
+            if (c.Value.triple.first.type != NodeType.Number) 
+                return null;
+            if (c.Value.triple.second.type != NodeType.Number) 
+                return null;
+            if (c.Value.triple.third.type != NodeType.Number) 
+                return null;
 
-            return ToColor(new(c.Value.triple.first.number, c.Value.triple.second.number, c.Value.triple.third.number));
-        }
-        static StringBuilder EvalFunction(Node f, int start, int end)
-        {
-            StringBuilder output = new();
-            for (int y = start; y < end; ++y)
-            {
-                float Normalizedy = ((float)y / HEIGHT) * 2 - 1;
-                for (int x = 0; x < WIDTH; ++x)
-                {
-                    float Normalizedx = ((float)x / WIDTH) * 2 - 1;
-                    Color? c = Eval(ref f, Normalizedx, Normalizedy);
-                    if (!c.HasValue)
-                        return new();
-                    output.Append($"{c.Value.R} {c.Value.G} {c.Value.B}\n");
-                }
-            }
-            return output;
+            return ToColor(new(c.Value.triple.first.number, c.Value.triple.second.number, c.Value.triple.third.number), min, max);
         }
         const int taskCount = 10;
         const int WIDTH = 10 * 80;
@@ -308,19 +313,10 @@ namespace random_art
             File.WriteAllText(FilePath, image.ToString());
             return true;
         }
-        static bool GeneratePPMFromNode(string FilePath, Node f)
-        {
-            StringBuilder image = new();
-            image.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
-            StringBuilder rgbs = EvalFunction(f, 0, HEIGHT);
-            if (rgbs.Length == 0)
-                return false;
-            image = image.Append(rgbs);
-            File.WriteAllText(FilePath, image.ToString());
-            return true;
-        }
         static Texture2D? GenerateTextureFromNode(Node f)
         {
+            float min = -1;
+            float max = 1;
             RenderTexture2D texture = Raylib.LoadRenderTexture(WIDTH, HEIGHT);
             Raylib.UnloadRenderTexture(texture);
             texture = Raylib.LoadRenderTexture(WIDTH, HEIGHT);
@@ -328,11 +324,13 @@ namespace random_art
             Raylib.ClearBackground(Color.White);
             for (int y = 0; y < HEIGHT; ++y)
             {
+                //float Normalizedy = ((float)y / HEIGHT);
                 float Normalizedy = ((float)y / HEIGHT) * 2 - 1;
                 for (int x = 0; x < WIDTH; ++x)
                 {
                     float Normalizedx = ((float)x / WIDTH) * 2 - 1;
-                    Color? c = Eval(ref f, Normalizedx, Normalizedy);
+                    //float Normalizedx = ((float)x / WIDTH);
+                    Color? c = Eval(ref f, Normalizedx, Normalizedy, min, max);
                     if (!c.HasValue)
                         return null;
                     Raylib.DrawPixel(x, y, c.Value);
@@ -340,31 +338,6 @@ namespace random_art
             }
             Raylib.EndTextureMode();
             return texture.Texture;
-        }
-        static bool TaskGeneratePPM(string FilePath, Node f)
-        {
-            StringBuilder image = new();
-            image.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
-            int portion = HEIGHT / taskCount;
-
-            var tasks = new List<Task<StringBuilder>>();
-            Task<StringBuilder> t = new(() => EvalFunction(f, 0, 234));
-            for (int i = 0; i < taskCount; ++i)
-            {
-                tasks.Add(Task.Run(() => EvalFunction(f, i * portion, (i + 1) * portion)));
-                //tasks.Add(new(() => EvalFunction(f, i * portion, (i + 1) * portion)));
-            }
-
-            Task.WaitAll([.. tasks]);
-
-            for (int i = 0; i < tasks.Count; i++)
-            {
-                StringBuilder PortionResult = tasks[i].Result;
-                image.Append(PortionResult);
-            }
-
-            File.WriteAllText(FilePath, image.ToString());
-            return true;
         }
         static void NodeTriplePrint(ref NodeTriple triple)
         {
@@ -380,7 +353,8 @@ namespace random_art
         {
             switch (node.type)
             {
-                case NodeType.number:
+                case NodeType.Number:
+                case NodeType.random:
                     Console.Write(node.number);
                     break;
                 case NodeType.X:
@@ -399,6 +373,7 @@ namespace random_art
                 case NodeType.MUL:
                 case NodeType.MOD:
                 case NodeType.GT:
+                case NodeType.GTE:
                 case NodeType.DIV:
                     Console.Write($"{node.type}(");
                     NodePrint(ref node.binary.lhs);
@@ -417,10 +392,10 @@ namespace random_art
                     NodePrint(ref node.iff.elsee);
                     Console.Write(")");
                     break;
-                case NodeType.boolean:
+                case NodeType.Boolean:
                     Console.Write(node.boolean);
                     break;
-                case NodeType.triple:
+                case NodeType.Triple:
                     NodeTriplePrint(ref node.triple);
                     break;
                 default: 
@@ -434,83 +409,140 @@ namespace random_art
             Console.WriteLine();
         }
         static readonly Random r = new();
-        static Node GenNode(int depth)
-        {
-            if (depth == 0)
-            {
-                int tt = 1 + r.Next(3);
-                if (tt == 1)
-                    return NodeX();
-                else if (tt == 2)
-                    return NodeY();
-                else if (tt == 3)
-                    return NodeNumber(r.NextSingle() * 2 - 1);
-            }
-            int t = r.Next(6);
-            switch (t)
-            {
-                case 0: return NodeADD(GenNode(depth - 1), GenNode(depth - 1));
-                case 1: return NodeSUB(GenNode(depth - 1), GenNode(depth - 1));
-                case 2: return NodeMUL(GenNode(depth - 1), GenNode(depth - 1));
-                case 3: return NodeDIV(GenNode(depth - 1), GenNode(depth - 1));
-                case 4: return NodeMOD(GenNode(depth - 1), GenNode(depth - 1));
-                case 5: return NodeSQRT(GenNode(depth - 1));
-                default: 
-                    UNREACHABLE("GenNode");
-                    return new();
-            }
-        }
         static Node LoadBasicNode()
         {
             return NodeIf(
-                NodeGT(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
+                NodeGTE(NodeMUL(NodeX(), NodeY()), NodeNumber(0)),
                 NodeTriple(NodeX(), NodeY(), NodeNumber(1)),
                 NodeTriple(NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()))
                 );
         }
+        
+        static Node GenNode(int branch, int depth)
+        {
+            if (depth == 0)
+            {
+                int t = r.Next(3);
+                if (t == 0)
+                    return NodeRandom();
+                if (t == 1)
+                    return NodeX();
+                if (t == 2)
+                    return NodeY();
+            }
+            if (branch == 1)
+            {
+                int t = r.Next(3);
+                if (t == 0)
+                    return NodeRandom();
+                if (t == 1)
+                    return NodeX();
+                if (t == 2)
+                    return NodeY();
+            }
+            else if (branch == 2)
+            {
+                int t = r.Next(3);
+                if (t == 0)
+                    return GenNode(1, depth - 1);
+                if (t == 1)
+                    return NodeADD(GenNode(2, depth - 1), GenNode(2, depth - 1));
+                if (t == 2)
+                    return NodeMUL(GenNode(2, depth - 1), GenNode(2, depth - 1));
+            }
+            UNREACHABLE("GenNode");
+            return new();
+        }
         static Node LoadFromGrammar(int depth)
         {
-            return NodeTriple(GenNode(depth), GenNode(depth), GenNode(depth));
-        }
-        static int temp()
-        {
-            //Node f = LoadBasicNode();
-            Node f = LoadFromGrammar(4);
-            Log(LogType.INFO, "Generating the function is done\n");
-
-            Console.WriteLine("function: ");
-            NodePrintln(ref f);
-
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            if (!GeneratePPMFromNode("output2.ppm", f))
-            {
-                Log(LogType.ERROR, "Could not Generate PPM image");
-                return 1;
-            }
-            Log(LogType.INFO, $"PPM image generated\n");
-            stopwatch.Stop();
-            long ms = stopwatch.ElapsedMilliseconds;
-            Console.WriteLine($"time taken: {(float)ms / 1000}\n");
-            return 0;
+            return NodeTriple(GenNode(2, depth - 1), GenNode(2, depth - 1), GenNode(2, depth - 1));
         }
         static Node f;
         static Texture2D texture;
         static Texture2D? NextTexture;
         static readonly Texture2D DefaultTexture = new () { Id = 1, Height = 1, Width = 1, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
-    static void UpdateTexture()
+    static void UpdateTexture(ref Texture2D texture)
         {
-            f = LoadFromGrammar(3);
+            //f = NodeTriple(NodeX(), NodeY(), NodeNumber(0));
+            f = LoadFromGrammar(10);
+            //f = LoadBasicNode();
             NextTexture = GenerateTextureFromNode(f);
             if (NextTexture.HasValue)
                 texture = NextTexture.Value;
             else
-                texture = DefaultTexture;
+                UNREACHABLE("reijfk");
+        }
+        static void RenderTexture(ref Texture2D texture)
+        {
+            if (Raylib.IsKeyPressed(KeyboardKey.R))
+            {
+                UpdateTexture(ref texture);
+            }
+            Raylib.DrawTextureRec(texture, new() { X = 0, Y = 0, Width = WIDTH, Height = -HEIGHT }, new() { X = 0, Y = 0 }, Color.White);
+        }
+        static StringBuilder NodeToShaderFunction(Node f)
+        {
+            switch (f.type)
+            {
+                case NodeType.Number:
+                case NodeType.random:
+                    return new($"({f.number})");
+                case NodeType.X:
+                    return new("(x)");
+                case NodeType.Y: 
+                    return new("(y)");
+                case NodeType.Boolean:
+                    return new((f.boolean) ? "(true)" : "(false)");
+                case NodeType.ADD:
+                    return new($"({NodeToShaderFunction(f.binary.lhs)} + {NodeToShaderFunction(f.binary.rhs)})");
+                case NodeType.MUL: 
+                    return new($"({NodeToShaderFunction(f.binary.lhs)} * {NodeToShaderFunction(f.binary.rhs)})");
+                case NodeType.SUB:
+                    return new($"({NodeToShaderFunction(f.binary.lhs)} - {NodeToShaderFunction(f.binary.rhs)})");
+                case NodeType.GT:
+                    return new($"({NodeToShaderFunction(f.binary.lhs)} > {NodeToShaderFunction(f.binary.rhs)})");
+                case NodeType.GTE:
+                    return new($"({NodeToShaderFunction(f.binary.lhs)} >= {NodeToShaderFunction(f.binary.rhs)})");
+                case NodeType.MOD:
+                    return new($"mod({NodeToShaderFunction(f.binary.lhs)}, {NodeToShaderFunction(f.binary.rhs)})");
+                case NodeType.DIV:
+                    return new($"({NodeToShaderFunction(f.binary.lhs)} / {NodeToShaderFunction(f.binary.rhs)})");
+                case NodeType.SQRT:
+                    return new($"(sqrt({NodeToShaderFunction(f.unary.expr)}))");
+                case NodeType.Triple:
+                    return new($"(vec3({NodeToShaderFunction(f.triple.first)}, {NodeToShaderFunction(f.triple.second)}, {NodeToShaderFunction(f.triple.third)}))");
+                case NodeType.If:
+                    return new($"({NodeToShaderFunction(f.iff.cond)}) ? ({NodeToShaderFunction(f.iff.then)}) : ({NodeToShaderFunction(f.iff.elsee)})");
+                default:
+                    UNREACHABLE("NodeToShaderFunction");
+                    return new();
+            }
+        }
+        static StringBuilder foo()
+        {
+            int depth = 15;
+            StringBuilder fs = new StringBuilder();
+            string func = NodeToShaderFunction(LoadFromGrammar(depth)).ToString();
+            Console.WriteLine(func);
+            fs.Append("#version 330\n");
+            fs.Append("in vec2 fragTexCoord;\n");
+            fs.Append("out vec4 finalColor;\n");
+            fs.Append("void main()\n");
+            fs.Append("{\n");
+            fs.Append("float x = 2.0 * fragTexCoord.x - 1.0;\n");
+            fs.Append("float y = 2.0 * fragTexCoord.y - 1.0;\n");
+            fs.Append($"   vec3 tempcolor = {func};\n");
+            fs.Append("    finalColor = vec4((tempcolor + 1) / 2.0, 1);\n");
+            fs.Append("}");
+            return fs;
         }
         static int Main(string[] args)
         {
             List<string> argslist = [.. args];
 
             // TODO:
+            //- use command line arguments to support cli, gui
+            //- in cli mode generate images using raylib textures
             //- You need a way to save and load the random function 
             //	- in a format so you can read it later and reuse it in the program
             //	- or same way of grammar handling
@@ -521,18 +553,27 @@ namespace random_art
 
             //- try GPU to accelerate this function which does evaluate the function at each node `static StringBuilder EvalFunction(Node f, int start, int end)`
             //- try shaders and textures and generate the function in the fragment shader and add time and think of other things
-            Raylib.InitWindow(800, 800, "Random Art");
-            Raylib.SetTargetFPS(60);
+            Raylib.InitWindow(WIDTH, HEIGHT, "Random Art");
+            Raylib.SetTargetFPS(0);
 
-            UpdateTexture();
+            Shader s = new();
+            s = Raylib.LoadShaderFromMemory(null, foo().ToString());
+
             while (!Raylib.WindowShouldClose())
             {
                 Raylib.BeginDrawing();
+                Raylib.ClearBackground(Color.Gray);
+
+                //RenderTexture(ref texture);
+
                 if (Raylib.IsKeyPressed(KeyboardKey.R))
                 {
-                    UpdateTexture();
+                    Raylib.UnloadShader(s);
+                    s = Raylib.LoadShaderFromMemory(null, foo().ToString());
                 }
-                Raylib.DrawTextureRec(texture, new() { X = 0, Y = 0, Width = WIDTH, Height = -HEIGHT}, new() { X = 0, Y = 0 }, Color.White);
+                Raylib.BeginShaderMode(s);
+                Raylib.DrawTextureEx(DefaultTexture, new Vector2(0, 0), 0, WIDTH, Color.White);
+                Raylib.EndShaderMode();
 
                 Raylib.DrawFPS(0, 0);
                 Raylib.EndDrawing();
