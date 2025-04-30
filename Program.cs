@@ -1,26 +1,15 @@
-﻿using System;
-using System.Diagnostics;
-using System.Diagnostics.Contracts;
-using System.Drawing;
+﻿using System.Diagnostics;
 using System.Numerics;
-using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading.Tasks;
-using System.Xml;
-using static System.Net.Mime.MediaTypeNames;
+using static random_art.Program;
+using Raylib_cs;
+using Color = Raylib_cs.Color;
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable RETURN0001
 #pragma warning restore IDE0079 // Remove unnecessary suppression
 namespace random_art
 {
-    public struct Color(byte r, byte g, byte b, byte a = 255)
-    {
-        public byte r = r;
-        public byte g = g;
-        public byte b = b;
-        public byte a = a;
-    }
     public enum NodeType
     {
         number, X, Y, boolean,
@@ -282,24 +271,7 @@ namespace random_art
 
             return ToColor(new(c.Value.triple.first.number, c.Value.triple.second.number, c.Value.triple.third.number));
         }
-        static bool GeneratePPM(string FilePath, Func<float, float, Color> f)
-        {
-            StringBuilder image = new();
-            image.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
-            for (int y = 0; y < HEIGHT; ++y)
-            {
-                float Normalizedy = ((float)y / HEIGHT) * 2 - 1;
-                for (int x = 0; x < WIDTH; ++x)
-                {
-                    float Normalizedx = ((float)x / WIDTH) * 2 - 1;
-                    Color c = f(Normalizedx, Normalizedy);
-                    image.Append($"{c.r} {c.g} {c.b}\n");
-                }
-            }
-            File.WriteAllText(FilePath, image.ToString());
-            return true;
-        }
-        static StringBuilder Foo(Node f, int start, int end)
+        static StringBuilder EvalFunction(Node f, int start, int end)
         {
             StringBuilder output = new();
             for (int y = start; y < end; ++y)
@@ -311,7 +283,7 @@ namespace random_art
                     Color? c = Eval(ref f, Normalizedx, Normalizedy);
                     if (!c.HasValue)
                         return new();
-                    output.Append($"{c.Value.r} {c.Value.g} {c.Value.b}\n");
+                    output.Append($"{c.Value.R} {c.Value.G} {c.Value.B}\n");
                 }
             }
             return output;
@@ -319,16 +291,55 @@ namespace random_art
         const int taskCount = 10;
         const int WIDTH = 10 * 80;
         const int HEIGHT = 10 * 80;
-        static bool GeneratePPM(string FilePath, Node f)
+        static bool GeneratePPM(string FilePath, Func<float, float, Color> f)
         {
             StringBuilder image = new();
             image.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
-            StringBuilder rgbs = Foo(f, 0, HEIGHT);
+            for (int y = 0; y < HEIGHT; ++y)
+            {
+                float Normalizedy = ((float)y / HEIGHT) * 2 - 1;
+                for (int x = 0; x < WIDTH; ++x)
+                {
+                    float Normalizedx = ((float)x / WIDTH) * 2 - 1;
+                    Color c = f(Normalizedx, Normalizedy);
+                    image.Append($"{c.R} {c.G} {c.B}\n");
+                }
+            }
+            File.WriteAllText(FilePath, image.ToString());
+            return true;
+        }
+        static bool GeneratePPMFromNode(string FilePath, Node f)
+        {
+            StringBuilder image = new();
+            image.Append($"P3\n{WIDTH} {HEIGHT}\n255\n");
+            StringBuilder rgbs = EvalFunction(f, 0, HEIGHT);
             if (rgbs.Length == 0)
                 return false;
             image = image.Append(rgbs);
             File.WriteAllText(FilePath, image.ToString());
             return true;
+        }
+        static Texture2D? GenerateTextureFromNode(Node f)
+        {
+            RenderTexture2D texture = Raylib.LoadRenderTexture(WIDTH, HEIGHT);
+            Raylib.UnloadRenderTexture(texture);
+            texture = Raylib.LoadRenderTexture(WIDTH, HEIGHT);
+            Raylib.BeginTextureMode(texture);
+            Raylib.ClearBackground(Color.White);
+            for (int y = 0; y < HEIGHT; ++y)
+            {
+                float Normalizedy = ((float)y / HEIGHT) * 2 - 1;
+                for (int x = 0; x < WIDTH; ++x)
+                {
+                    float Normalizedx = ((float)x / WIDTH) * 2 - 1;
+                    Color? c = Eval(ref f, Normalizedx, Normalizedy);
+                    if (!c.HasValue)
+                        return null;
+                    Raylib.DrawPixel(x, y, c.Value);
+                }
+            }
+            Raylib.EndTextureMode();
+            return texture.Texture;
         }
         static bool TaskGeneratePPM(string FilePath, Node f)
         {
@@ -337,11 +348,11 @@ namespace random_art
             int portion = HEIGHT / taskCount;
 
             var tasks = new List<Task<StringBuilder>>();
-            Task<StringBuilder> t = new(() => Foo(f, 0, 234));
+            Task<StringBuilder> t = new(() => EvalFunction(f, 0, 234));
             for (int i = 0; i < taskCount; ++i)
             {
-                tasks.Add(Task.Run(() => Foo(f, i * portion, (i + 1) * portion)));
-                //tasks.Add(new(() => Foo(f, i * portion, (i + 1) * portion)));
+                tasks.Add(Task.Run(() => EvalFunction(f, i * portion, (i + 1) * portion)));
+                //tasks.Add(new(() => EvalFunction(f, i * portion, (i + 1) * portion)));
             }
 
             Task.WaitAll([.. tasks]);
@@ -461,6 +472,40 @@ namespace random_art
         {
             return NodeTriple(GenNode(depth), GenNode(depth), GenNode(depth));
         }
+        static int temp()
+        {
+            //Node f = LoadBasicNode();
+            Node f = LoadFromGrammar(4);
+            Log(LogType.INFO, "Generating the function is done\n");
+
+            Console.WriteLine("function: ");
+            NodePrintln(ref f);
+
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            if (!GeneratePPMFromNode("output2.ppm", f))
+            {
+                Log(LogType.ERROR, "Could not Generate PPM image");
+                return 1;
+            }
+            Log(LogType.INFO, $"PPM image generated\n");
+            stopwatch.Stop();
+            long ms = stopwatch.ElapsedMilliseconds;
+            Console.WriteLine($"time taken: {(float)ms / 1000}\n");
+            return 0;
+        }
+        static Node f;
+        static Texture2D texture;
+        static Texture2D? NextTexture;
+        static readonly Texture2D DefaultTexture = new () { Id = 1, Height = 1, Width = 1, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
+    static void UpdateTexture()
+        {
+            f = LoadFromGrammar(3);
+            NextTexture = GenerateTextureFromNode(f);
+            if (NextTexture.HasValue)
+                texture = NextTexture.Value;
+            else
+                texture = DefaultTexture;
+        }
         static int Main(string[] args)
         {
             List<string> argslist = [.. args];
@@ -472,29 +517,27 @@ namespace random_art
             //- You need a way to save and load the grammar (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
             //- A random grammar generator
             //	- you need rules for generation
-
             //- And for any of that to happen, you need a format (struct/class) for the grammars that is generated or possibly hardcoded
 
-            //- try GPU and shaders to generate the image
-            //Node f = LoadBasicNode();
-            Node f = LoadFromGrammar(10);
-            //Node f = NodeX();
-            //Node f = NodeTriple(NodeX(), NodeX(), NodeX());
-            Log(LogType.INFO, "Generating the function is done\n");
+            //- try GPU to accelerate this function which does evaluate the function at each node `static StringBuilder EvalFunction(Node f, int start, int end)`
+            //- try shaders and textures and generate the function in the fragment shader and add time and think of other things
+            Raylib.InitWindow(800, 800, "Random Art");
+            Raylib.SetTargetFPS(60);
 
-            Console.WriteLine("function: ");
-            NodePrintln(ref f);
-
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            if (!GeneratePPM("output2.ppm", f))
+            UpdateTexture();
+            while (!Raylib.WindowShouldClose())
             {
-                Log(LogType.ERROR, "Could not Generate PPM image");
-                return 1;
+                Raylib.BeginDrawing();
+                if (Raylib.IsKeyPressed(KeyboardKey.R))
+                {
+                    UpdateTexture();
+                }
+                Raylib.DrawTextureRec(texture, new() { X = 0, Y = 0, Width = WIDTH, Height = -HEIGHT}, new() { X = 0, Y = 0 }, Color.White);
+
+                Raylib.DrawFPS(0, 0);
+                Raylib.EndDrawing();
             }
-            Log(LogType.INFO, $"PPM image generated\n");
-            stopwatch.Stop();
-            long ms = stopwatch.ElapsedMilliseconds;
-            Console.WriteLine($"time taken: {(float)ms / 1000}\n");
+            Raylib.CloseWindow();
             return 0;
         }
     }
