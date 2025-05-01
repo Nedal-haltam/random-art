@@ -7,6 +7,7 @@ using Color = Raylib_cs.Color;
 using System.Reflection.Metadata;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using System;
+using System.Xml.Xsl;
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable RETURN0001
@@ -70,7 +71,7 @@ namespace random_art
 
         public enum LogType
         {
-            INFO, WARNING, ERROR
+            INFO, WARNING, ERROR, NORMAL
         }
         static void Log(LogType type, string msg)
         {
@@ -90,7 +91,10 @@ namespace random_art
                     Console.ForegroundColor = ConsoleColor.Red;
                     head = "ERROR: ";
                     break;
-                default: 
+                case LogType.NORMAL:
+                    head = "";
+                    break;
+                default:
                     UNREACHABLE("Log");
                     return;
             }
@@ -186,10 +190,11 @@ namespace random_art
                 case NodeType.Y:
                 case NodeType.If:
                 case NodeType.Triple:
-                default: 
+                default:
                     UNREACHABLE("EvalBinary");
                     return new();
-            };
+            }
+            ;
 #pragma warning restore IDE0066 // Convert switch statement to expression
         }
         static Node EvalUnary(Node expr, NodeType type)
@@ -211,7 +216,7 @@ namespace random_art
                 case NodeType.Y:
                 case NodeType.If:
                 case NodeType.Triple:
-                default: 
+                default:
                     UNREACHABLE("EvalUnary");
                     return new();
             }
@@ -271,7 +276,7 @@ namespace random_art
                     if (!third.HasValue) return null;
                     if (third.Value.type != NodeType.Number) return null;
                     return NodeTriple(NodeNumber(first.Value.number), NodeNumber(second.Value.number), NodeNumber(third.Value.number));
-                default: 
+                default:
                     UNREACHABLE("EvalToNode");
                     return new();
             }
@@ -280,15 +285,15 @@ namespace random_art
         {
             Node? c = EvalToNode(ref f, x, y);
 
-            if (!c.HasValue) 
+            if (!c.HasValue)
                 return null;
-            if (c.Value.type != NodeType.Triple) 
+            if (c.Value.type != NodeType.Triple)
                 return null;
-            if (c.Value.triple.first.type != NodeType.Number) 
+            if (c.Value.triple.first.type != NodeType.Number)
                 return null;
-            if (c.Value.triple.second.type != NodeType.Number) 
+            if (c.Value.triple.second.type != NodeType.Number)
                 return null;
-            if (c.Value.triple.third.type != NodeType.Number) 
+            if (c.Value.triple.third.type != NodeType.Number)
                 return null;
 
             return ToColor(new(c.Value.triple.first.number, c.Value.triple.second.number, c.Value.triple.third.number), min, max);
@@ -365,7 +370,7 @@ namespace random_art
                     break;
                 case NodeType.SQRT:
                     Console.Write($"{node.type}(");
-                    NodePrint(ref node.unary.expr); 
+                    NodePrint(ref node.unary.expr);
                     Console.Write(")");
                     break;
                 case NodeType.ADD:
@@ -398,7 +403,7 @@ namespace random_art
                 case NodeType.Triple:
                     NodeTriplePrint(ref node.triple);
                     break;
-                default: 
+                default:
                     UNREACHABLE("NodePrint");
                     return;
             }
@@ -417,7 +422,7 @@ namespace random_art
                 NodeTriple(NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()))
                 );
         }
-        
+
         static Node GenNode(int branch, int depth)
         {
             if (depth == 0)
@@ -460,23 +465,23 @@ namespace random_art
         static Node f;
         static Texture2D texture;
         static Texture2D? NextTexture;
-        static readonly Texture2D DefaultTexture = new () { Id = 1, Height = 1, Width = 1, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
-    static void UpdateTexture(ref Texture2D texture)
+        static readonly Texture2D DefaultTexture = new() { Id = 1, Height = 1, Width = 1, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
+        static void UpdateTexture(ref Texture2D texture, int depth)
         {
             //f = NodeTriple(NodeX(), NodeY(), NodeNumber(0));
-            f = LoadFromGrammar(10);
+            f = LoadFromGrammar(depth);
             //f = LoadBasicNode();
             NextTexture = GenerateTextureFromNode(f);
             if (NextTexture.HasValue)
                 texture = NextTexture.Value;
             else
-                UNREACHABLE("reijfk");
+                UNREACHABLE("UpdateTexture");
         }
-        static void RenderTexture(ref Texture2D texture)
+        static void RenderTexture(ref Texture2D texture, int depth)
         {
             if (Raylib.IsKeyPressed(KeyboardKey.R))
             {
-                UpdateTexture(ref texture);
+                UpdateTexture(ref texture, depth);
             }
             Raylib.DrawTextureRec(texture, new() { X = 0, Y = 0, Width = WIDTH, Height = -HEIGHT }, new() { X = 0, Y = 0 }, Color.White);
         }
@@ -489,13 +494,13 @@ namespace random_art
                     return new($"({f.number})");
                 case NodeType.X:
                     return new("(x)");
-                case NodeType.Y: 
+                case NodeType.Y:
                     return new("(y)");
                 case NodeType.Boolean:
                     return new((f.boolean) ? "(true)" : "(false)");
                 case NodeType.ADD:
                     return new($"({NodeToShaderFunction(f.binary.lhs)} + {NodeToShaderFunction(f.binary.rhs)})");
-                case NodeType.MUL: 
+                case NodeType.MUL:
                     return new($"({NodeToShaderFunction(f.binary.lhs)} * {NodeToShaderFunction(f.binary.rhs)})");
                 case NodeType.SUB:
                     return new($"({NodeToShaderFunction(f.binary.lhs)} - {NodeToShaderFunction(f.binary.rhs)})");
@@ -520,10 +525,9 @@ namespace random_art
         }
         static StringBuilder foo()
         {
-            int depth = 15;
+            int depth = 20;
             StringBuilder fs = new StringBuilder();
             string func = NodeToShaderFunction(LoadFromGrammar(depth)).ToString();
-            Console.WriteLine(func);
             fs.Append("#version 330\n");
             fs.Append("in vec2 fragTexCoord;\n");
             fs.Append("out vec4 finalColor;\n");
@@ -536,26 +540,10 @@ namespace random_art
             fs.Append("}");
             return fs;
         }
-        static int Main(string[] args)
+        static void Gui()
         {
-            List<string> argslist = [.. args];
-
-            // TODO:
-            //- use command line arguments to support cli, gui
-            //- in cli mode generate images using raylib textures
-            //- You need a way to save and load the random function 
-            //	- in a format so you can read it later and reuse it in the program
-            //	- or same way of grammar handling
-            //- You need a way to save and load the grammar (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
-            //- A random grammar generator
-            //	- you need rules for generation
-            //- And for any of that to happen, you need a format (struct/class) for the grammars that is generated or possibly hardcoded
-
-            //- try GPU to accelerate this function which does evaluate the function at each node `static StringBuilder EvalFunction(Node f, int start, int end)`
-            //- try shaders and textures and generate the function in the fragment shader and add time and think of other things
             Raylib.InitWindow(WIDTH, HEIGHT, "Random Art");
             Raylib.SetTargetFPS(0);
-
             Shader s = new();
             s = Raylib.LoadShaderFromMemory(null, foo().ToString());
 
@@ -579,6 +567,66 @@ namespace random_art
                 Raylib.EndDrawing();
             }
             Raylib.CloseWindow();
+        }
+        static string ShifArgs(ref string[] args)
+        {
+            if (args.Length == 0)
+                return null;
+            string arg = args[0];
+            args = args[1..];
+            return arg;
+        }
+        static void Usage()
+        {
+            // TODO: update usage to suite the features available
+            Log(LogType.ERROR, "Usage: \n");
+            Log(LogType.NORMAL, "Modes of operation: `gui`, `cli`\n");
+            Log(LogType.NORMAL, "gui: launch a gui application to see animation at real time and change it\n");
+            Log(LogType.NORMAL, "cli: generate an image to the provided file path\n");
+        }
+        static int Main(string[] args)
+        {
+            if (args.Length == 0)
+            {
+                Usage();
+            }
+            string mode = ShifArgs(ref args).ToLower();
+            if (mode == "cli")
+            {
+                string OutputFilePath = ShifArgs(ref args);
+                if (OutputFilePath == null)
+                {
+                    Log(LogType.ERROR, "No Output file path provided\n");
+                    Usage();
+                    return 1;
+                }
+                Raylib.InitWindow(WIDTH, HEIGHT, "");
+                Shader s = Raylib.LoadShaderFromMemory(null, foo().ToString());
+                Raylib.BeginDrawing();
+                Raylib.ClearBackground(Color.Gray);
+                Raylib.BeginShaderMode(s);
+                Raylib.DrawTextureEx(DefaultTexture, new Vector2(0, 0), 0, WIDTH, Color.White);
+                Raylib.EndShaderMode();
+                Image image = Raylib.LoadImageFromScreen();
+                Raylib.ExportImage(image, OutputFilePath);
+                Raylib.EndDrawing();
+                Raylib.CloseWindow();
+            }
+            else if (mode == "gui")
+            {
+                Gui();
+            }
+            // TODO:
+            //- You need a way to save and load the random function 
+            //	- in a format so you can read it later and reuse it in the program
+            //	- or same way of grammar handling
+            //- You need a way to save and load the grammar (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
+            //- A random grammar generator
+            //	- you need rules for generation
+            //- And for any of that to happen, you need a format (struct/class) for the grammars that is generated or possibly hardcoded
+
+            //- try GPU to accelerate this function which does evaluate the function at each node `static StringBuilder EvalFunction(Node f, int start, int end)`
+            //- add time and think of other things
             return 0;
         }
     }
