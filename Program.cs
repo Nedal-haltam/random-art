@@ -16,6 +16,8 @@ namespace random_art
 {
     public enum NodeType
     {
+        Branch,
+
         Number, random, X, Y, Boolean,
 
         ADD, MUL, SUB, GT, GTE, MOD, DIV,
@@ -56,6 +58,37 @@ namespace random_art
         public NodeBinary binary;
         public NodeTriple triple;
         public NodeIf iff;
+    }
+    public struct Branch
+    {
+        public struct BranchNode
+        {
+            public NodeType type;
+
+            public Node node;
+            public float probability;
+            public int Branch;
+
+            public int exprbranch;
+
+            public int lhsbranch;
+            public int rhsbranch;
+
+            public int firstbranch;
+            public int secondbranch;
+            public int thirdbranch;
+
+            public int iffbranch;
+            public int thenbranch;
+            public int elseebranch;
+
+        }
+        public List<BranchNode> nodes;
+    }
+    public struct Grammar
+    {
+        public List<Branch> branches;
+        public int terminalbranchindex;
     }
     internal sealed class Program
     {
@@ -100,6 +133,14 @@ namespace random_art
             }
             Console.Write(head + msg);
             Console.ForegroundColor = before;
+        }
+        static string? ShifArgs(ref string[] args)
+        {
+            if (args.Length == 0)
+                return null;
+            string arg = args[0];
+            args = args[1..];
+            return arg;
         }
         static void UNREACHABLE(string msg)
         {
@@ -183,6 +224,7 @@ namespace random_art
                 case NodeType.GTE: return NodeBoolean(lhs.number >= rhs.number);
                 case NodeType.DIV: return NodeNumber((rhs.number == 0) ? lhs.number : lhs.number / rhs.number);
                 case NodeType.SQRT:
+                case NodeType.Branch:
                 case NodeType.Number:
                 case NodeType.random:
                 case NodeType.Boolean:
@@ -203,6 +245,7 @@ namespace random_art
             {
                 case NodeType.SQRT: return NodeNumber(MathF.Sqrt(MathF.Abs(expr.number)));
                 case NodeType.ADD:
+                case NodeType.Branch:
                 case NodeType.SUB:
                 case NodeType.MUL:
                 case NodeType.MOD:
@@ -276,6 +319,7 @@ namespace random_art
                     if (!third.HasValue) return null;
                     if (third.Value.type != NodeType.Number) return null;
                     return NodeTriple(NodeNumber(first.Value.number), NodeNumber(second.Value.number), NodeNumber(third.Value.number));
+                case NodeType.Branch:
                 default:
                     UNREACHABLE("EvalToNode");
                     return new();
@@ -403,6 +447,7 @@ namespace random_art
                 case NodeType.Triple:
                     NodeTriplePrint(ref node.triple);
                     break;
+                case NodeType.Branch:
                 default:
                     UNREACHABLE("NodePrint");
                     return;
@@ -423,7 +468,7 @@ namespace random_art
                 );
         }
 
-        static Node GenNode(int branch, int depth)
+        static Node BasicGrammar(int branch, int depth)
         {
             if (depth == 0)
             {
@@ -449,39 +494,36 @@ namespace random_art
             {
                 int t = r.Next(3);
                 if (t == 0)
-                    return GenNode(1, depth - 1);
+                    return BasicGrammar(1, depth - 1);
                 if (t == 1)
-                    return NodeADD(GenNode(2, depth - 1), GenNode(2, depth - 1));
+                    return NodeADD(BasicGrammar(2, depth - 1), BasicGrammar(2, depth - 1));
                 if (t == 2)
-                    return NodeMUL(GenNode(2, depth - 1), GenNode(2, depth - 1));
+                    return NodeMUL(BasicGrammar(2, depth - 1), BasicGrammar(2, depth - 1));
             }
-            UNREACHABLE("GenNode");
+            UNREACHABLE("BasicGrammar");
             return new();
         }
-        static Node LoadFromGrammar(int depth)
+        static Node GeneratNodeFromFunctionalGrammar(int depth, Func<int , int, Node> FunctionGrammar)
         {
-            return NodeTriple(GenNode(2, depth - 1), GenNode(2, depth - 1), GenNode(2, depth - 1));
+            return NodeTriple(FunctionGrammar(2, depth - 1), FunctionGrammar(2, depth - 1), FunctionGrammar(2, depth - 1));
         }
-        static Node f;
         static Texture2D texture;
         static Texture2D? NextTexture;
         static readonly Texture2D DefaultTexture = new() { Id = 1, Height = 1, Width = 1, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
-        static void UpdateTexture(ref Texture2D texture, int depth)
+        static void UpdateTexture(ref Texture2D texture, Grammar grammar, int depth)
         {
-            //f = NodeTriple(NodeX(), NodeY(), NodeNumber(0));
-            f = LoadFromGrammar(depth);
-            //f = LoadBasicNode();
+            Node f = GeneratNodeFromFunctionalGrammar(depth, BasicGrammar);
             NextTexture = GenerateTextureFromNode(f);
             if (NextTexture.HasValue)
                 texture = NextTexture.Value;
             else
                 UNREACHABLE("UpdateTexture");
         }
-        static void RenderTexture(ref Texture2D texture, int depth)
+        static void RenderTexture(ref Texture2D texture, Grammar grammar, int depth)
         {
             if (Raylib.IsKeyPressed(KeyboardKey.R))
             {
-                UpdateTexture(ref texture, depth);
+                UpdateTexture(ref texture, grammar, depth);
             }
             Raylib.DrawTextureRec(texture, new() { X = 0, Y = 0, Width = WIDTH, Height = -HEIGHT }, new() { X = 0, Y = 0 }, Color.White);
         }
@@ -518,16 +560,87 @@ namespace random_art
                     return new($"(vec3({NodeToShaderFunction(f.triple.first)}, {NodeToShaderFunction(f.triple.second)}, {NodeToShaderFunction(f.triple.third)}))");
                 case NodeType.If:
                     return new($"({NodeToShaderFunction(f.iff.cond)}) ? ({NodeToShaderFunction(f.iff.then)}) : ({NodeToShaderFunction(f.iff.elsee)})");
+                case NodeType.Branch:
                 default:
                     UNREACHABLE("NodeToShaderFunction");
                     return new();
             }
         }
-        static StringBuilder foo()
+        static Grammar LoadDefaultGrammar()
         {
-            int depth = 20;
+            return new()
+            {
+                branches = 
+                [
+                    new() { nodes = [new() { type = NodeType.Triple, firstbranch = 2, secondbranch = 2, thenbranch = 2}] },
+                    new() { nodes = [new() { type = NodeType.random}, new() { type = NodeType.X}, new() { type = NodeType.Y}] },
+                    new() { nodes = [new() { type = NodeType.Branch, Branch = 1}, new() { type = NodeType.ADD, lhsbranch = 2, rhsbranch = 2}, new() { type = NodeType.MUL, lhsbranch = 2, rhsbranch = 2 }] },
+                ],
+                terminalbranchindex = 1
+            };
+        }
+        static Node GrammarToNode(Grammar grammar, int branch, int depth)
+        {
+            Branch b;
+            int next;
+            Branch.BranchNode branchnode;
+            if (depth == 0)
+            {
+                b = grammar.branches[grammar.terminalbranchindex];
+                next = r.Next(b.nodes.Count);
+                branchnode = b.nodes[next];
+            }
+            else
+            {
+                b = grammar.branches[branch];
+                next = r.Next(b.nodes.Count);
+                branchnode = b.nodes[next];
+            }
+            switch (branchnode.type)
+            {
+
+                case NodeType.Branch:
+                    return GrammarToNode(grammar, branchnode.Branch, depth - 1);
+                case NodeType.Number: 
+                    return NodeNumber(branchnode.node.number);
+                case NodeType.random:
+                    return NodeRandom();
+                case NodeType.X:
+                    return NodeX();
+                case NodeType.Y:
+                    return NodeY();
+                case NodeType.Boolean: 
+                    return NodeBoolean(branchnode.node.boolean);
+                case NodeType.ADD:
+                    return NodeADD(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
+                case NodeType.MUL: 
+                    return NodeMUL(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
+                case NodeType.SUB: 
+                    return NodeSUB(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
+                case NodeType.GT: 
+                    return NodeGT(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
+                case NodeType.GTE: 
+                    return NodeGTE(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
+                case NodeType.MOD: 
+                    return NodeMOD(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
+                case NodeType.DIV: 
+                    return NodeDIV(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
+                case NodeType.SQRT: 
+                    return NodeSQRT(GrammarToNode(grammar, branchnode.exprbranch, depth - 1));
+                case NodeType.Triple:
+                    return NodeTriple(GrammarToNode(grammar, branchnode.firstbranch, depth - 1), GrammarToNode(grammar, branchnode.secondbranch, depth - 1), GrammarToNode(grammar, branchnode.thirdbranch, depth - 1));
+                case NodeType.If:
+                    return NodeIf(GrammarToNode(grammar, branchnode.iffbranch, depth - 1), GrammarToNode(grammar, branchnode.thenbranch, depth - 1), GrammarToNode(grammar, branchnode.elseebranch, depth - 1));
+                default:
+                    UNREACHABLE("GrammarToNode");
+                    return new();
+            }
+        }
+        static StringBuilder GrammarToShaderFunction(Grammar grammar, int branch, int depth)
+        {
+            Node f = GrammarToNode(grammar, branch, depth);
             StringBuilder fs = new StringBuilder();
-            string func = NodeToShaderFunction(LoadFromGrammar(depth)).ToString();
+            string func = NodeToShaderFunction(f).ToString();
             fs.Append("#version 330\n");
             fs.Append("in vec2 fragTexCoord;\n");
             fs.Append("out vec4 finalColor;\n");
@@ -544,20 +657,18 @@ namespace random_art
         {
             Raylib.InitWindow(WIDTH, HEIGHT, "Random Art");
             Raylib.SetTargetFPS(0);
-            Shader s = new();
-            s = Raylib.LoadShaderFromMemory(null, foo().ToString());
-
+            int depth = 20;
+            Grammar grammar = LoadDefaultGrammar();
+            int start = 0;
+            Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, start, depth).ToString());
             while (!Raylib.WindowShouldClose())
             {
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Color.Gray);
-
-                //RenderTexture(ref texture);
-
                 if (Raylib.IsKeyPressed(KeyboardKey.R))
                 {
                     Raylib.UnloadShader(s);
-                    s = Raylib.LoadShaderFromMemory(null, foo().ToString());
+                    s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, start, depth).ToString());
                 }
                 Raylib.BeginShaderMode(s);
                 Raylib.DrawTextureEx(DefaultTexture, new Vector2(0, 0), 0, WIDTH, Color.White);
@@ -566,15 +677,8 @@ namespace random_art
                 Raylib.DrawFPS(0, 0);
                 Raylib.EndDrawing();
             }
+            Raylib.UnloadShader(s);
             Raylib.CloseWindow();
-        }
-        static string ShifArgs(ref string[] args)
-        {
-            if (args.Length == 0)
-                return null;
-            string arg = args[0];
-            args = args[1..];
-            return arg;
         }
         static void Usage()
         {
@@ -590,18 +694,22 @@ namespace random_art
             {
                 Usage();
             }
-            string mode = ShifArgs(ref args).ToLower();
-            if (mode == "cli")
+            string? mode = ShifArgs(ref args);
+
+            if (mode != null && mode.ToLower() == "cli")
             {
-                string OutputFilePath = ShifArgs(ref args);
+                int depth = 20;
+                string? OutputFilePath = ShifArgs(ref args);
                 if (OutputFilePath == null)
                 {
                     Log(LogType.ERROR, "No Output file path provided\n");
                     Usage();
                     return 1;
                 }
+                Grammar grammar = LoadDefaultGrammar();
+                int start = 0;
                 Raylib.InitWindow(WIDTH, HEIGHT, "");
-                Shader s = Raylib.LoadShaderFromMemory(null, foo().ToString());
+                Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, start, depth).ToString());
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Color.Gray);
                 Raylib.BeginShaderMode(s);
@@ -610,9 +718,11 @@ namespace random_art
                 Image image = Raylib.LoadImageFromScreen();
                 Raylib.ExportImage(image, OutputFilePath);
                 Raylib.EndDrawing();
+                Raylib.UnloadShader(s);
+                Raylib.UnloadImage(image);
                 Raylib.CloseWindow();
             }
-            else if (mode == "gui")
+            else if (mode != null && mode.ToLower() == "gui")
             {
                 Gui();
             }
@@ -623,7 +733,6 @@ namespace random_art
             //- You need a way to save and load the grammar (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
             //- A random grammar generator
             //	- you need rules for generation
-            //- And for any of that to happen, you need a format (struct/class) for the grammars that is generated or possibly hardcoded
 
             //- try GPU to accelerate this function which does evaluate the function at each node `static StringBuilder EvalFunction(Node f, int start, int end)`
             //- add time and think of other things
