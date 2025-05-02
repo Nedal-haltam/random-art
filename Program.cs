@@ -89,6 +89,7 @@ namespace random_art
     public struct Grammar
     {
         public List<Branch> branches;
+        public int startbranchindex;
         public int terminalbranchindex;
     }
     internal sealed class Program
@@ -217,7 +218,6 @@ namespace random_art
         }
         static Node EvalBinary(Node lhs, Node rhs, NodeType type)
         {
-#pragma warning disable IDE0066 // Convert switch statement to expression
             switch (type)
             {
                 case NodeType.ADD: return NodeNumber(lhs.number + rhs.number);
@@ -239,9 +239,7 @@ namespace random_art
                 default:
                     UNREACHABLE("EvalBinary");
                     return new();
-            }
-            ;
-#pragma warning restore IDE0066 // Convert switch statement to expression
+            };
         }
         static Node EvalUnary(Node expr, NodeType type)
         {
@@ -516,7 +514,7 @@ namespace random_art
         static readonly Texture2D DefaultTexture = new() { Id = 1, Height = 1, Width = 1, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
         static void UpdateTexture(ref Texture2D texture, Grammar grammar, int depth)
         {
-            Node f = GeneratNodeFromFunctionalGrammar(depth, BasicGrammar);
+            Node f = GrammarToNode(grammar, 0, depth);
             NextTexture = GenerateTextureFromNode(f);
             if (NextTexture.HasValue)
                 texture = NextTexture.Value;
@@ -580,7 +578,8 @@ namespace random_art
                     new() { nodes = [new() { type = NodeType.random}, new() { type = NodeType.X}, new() { type = NodeType.Y}] },
                     new() { nodes = [new() { type = NodeType.Branch, Branch = 1}, new() { type = NodeType.ADD, lhsbranch = 2, rhsbranch = 2}, new() { type = NodeType.MUL, lhsbranch = 2, rhsbranch = 2 }] },
                 ],
-                terminalbranchindex = 1
+                startbranchindex = 0,
+                terminalbranchindex = 1,
             };
         }
         static Node GrammarToNode(Grammar grammar, int branch, int depth)
@@ -640,10 +639,10 @@ namespace random_art
                     return new();
             }
         }
-        static StringBuilder GrammarToShaderFunction(Grammar grammar, int branch, int depth)
+        static StringBuilder GrammarToShaderFunction(Grammar grammar, int depth)
         {
-            Node f = GrammarToNode(grammar, branch, depth);
-            StringBuilder fs = new StringBuilder();
+            Node f = GrammarToNode(grammar, grammar.startbranchindex, depth);
+            StringBuilder fs = new();
             string func = NodeToShaderFunction(f).ToString();
             fs.Append("#version 330\n");
             fs.Append("in vec2 fragTexCoord;\n");
@@ -654,7 +653,7 @@ namespace random_art
             fs.Append("float y = 2.0 * fragTexCoord.y - 1.0;\n");
             fs.Append($"   vec3 tempcolor = {func};\n");
             fs.Append("    finalColor = vec4((tempcolor + 1) / 2.0, 1);\n");
-            fs.Append("}");
+            fs.Append('}');
             return fs;
         }
         static void Gui(int depth)
@@ -662,8 +661,7 @@ namespace random_art
             Raylib.InitWindow(WIDTH, HEIGHT, "Random Art");
             Raylib.SetTargetFPS(0);
             Grammar grammar = LoadDefaultGrammar();
-            int start = 0;
-            Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, start, depth).ToString());
+            Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
             while (!Raylib.WindowShouldClose())
             {
                 Raylib.BeginDrawing();
@@ -671,7 +669,7 @@ namespace random_art
                 if (Raylib.IsKeyPressed(KeyboardKey.R))
                 {
                     Raylib.UnloadShader(s);
-                    s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, start, depth).ToString());
+                    s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
                 }
                 Raylib.BeginShaderMode(s);
                 Raylib.DrawTextureEx(DefaultTexture, new Vector2(0, 0), 0, WIDTH, Color.White);
@@ -686,19 +684,23 @@ namespace random_art
         static void Usage()
         {
             // TODO: update usage to suite the features available
-            Log(LogType.ERROR, "Usage: \n");
-            //Log(LogType.NORMAL, $"{}");
-            Log(LogType.NORMAL, "Modes of operation: `gui`, `cli`\n");
-            Log(LogType.NORMAL, "gui: launch a gui application to see animation at real time and change it\n");
-            Log(LogType.NORMAL, "cli: generate an image to the provided file path\n");
+            Log(LogType.NORMAL, "\nUsage: \n");
+            Log(LogType.NORMAL, $".\\random-art.exe [gui|cli] [option(s)]\n");
+            Log(LogType.NORMAL, "\nOptions:\n");
+            Log(LogType.NORMAL, $"\t{"-o <file>", -15} : place the output image into <file>\n");
+            Log(LogType.NORMAL, $"\t{"-depth <depth>", -15} : specify the depth of the generated function\n\n");
         }
         static int Main(string[] args)
         {
             if (args.Length == 0)
             {
                 Usage();
+                Environment.Exit(0);
             }
+            
             string mode = ShifArgs(ref args, "No mode provided\n");
+
+            if (mode.Equals("-h", StringComparison.CurrentCultureIgnoreCase)) { Usage(); Environment.Exit(0); }
 
             if (mode.Equals("cli", StringComparison.CurrentCultureIgnoreCase))
             {
@@ -719,9 +721,8 @@ namespace random_art
                     }
                 }
                 Grammar grammar = LoadDefaultGrammar();
-                int start = 0;
                 Raylib.InitWindow(WIDTH, HEIGHT, "");
-                Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, start, depth).ToString());
+                Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Color.Gray);
                 Raylib.BeginShaderMode(s);
@@ -751,6 +752,11 @@ namespace random_art
                     }
                 }
                 Gui(depth);
+            }
+            else
+            {
+                Usage();
+                Environment.Exit(0);
             }
             // TODO:
             //- You need a way to save and load the random function 
