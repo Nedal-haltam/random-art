@@ -1,13 +1,14 @@
 ﻿using System.Diagnostics;
 using System.Numerics;
 using System.Text;
-using static random_art.Program;
 using Raylib_cs;
 using Color = Raylib_cs.Color;
-using System.Reflection.Metadata;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 using System;
 using System.Xml.Xsl;
+using System.Runtime.CompilerServices;
+using static System.Net.Mime.MediaTypeNames;
+using System.Reflection;
+using Image = Raylib_cs.Image;
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable RETURN0001
@@ -134,10 +135,13 @@ namespace random_art
             Console.Write(head + msg);
             Console.ForegroundColor = before;
         }
-        static string? ShifArgs(ref string[] args)
+        static string ShifArgs(ref string[] args, string msg)
         {
             if (args.Length == 0)
-                return null;
+            {
+                Log(LogType.ERROR, msg);
+                Environment.Exit(1);
+            }
             string arg = args[0];
             args = args[1..];
             return arg;
@@ -653,11 +657,10 @@ namespace random_art
             fs.Append("}");
             return fs;
         }
-        static void Gui()
+        static void Gui(int depth)
         {
             Raylib.InitWindow(WIDTH, HEIGHT, "Random Art");
             Raylib.SetTargetFPS(0);
-            int depth = 20;
             Grammar grammar = LoadDefaultGrammar();
             int start = 0;
             Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, start, depth).ToString());
@@ -684,6 +687,7 @@ namespace random_art
         {
             // TODO: update usage to suite the features available
             Log(LogType.ERROR, "Usage: \n");
+            //Log(LogType.NORMAL, $"{}");
             Log(LogType.NORMAL, "Modes of operation: `gui`, `cli`\n");
             Log(LogType.NORMAL, "gui: launch a gui application to see animation at real time and change it\n");
             Log(LogType.NORMAL, "cli: generate an image to the provided file path\n");
@@ -694,17 +698,25 @@ namespace random_art
             {
                 Usage();
             }
-            string? mode = ShifArgs(ref args);
+            string mode = ShifArgs(ref args, "No mode provided\n");
 
-            if (mode != null && mode.ToLower() == "cli")
+            if (mode.Equals("cli", StringComparison.CurrentCultureIgnoreCase))
             {
+                string outputpath = "Default_output_path.png";
                 int depth = 20;
-                string? OutputFilePath = ShifArgs(ref args);
-                if (OutputFilePath == null)
+                while (args.Length > 0)
                 {
-                    Log(LogType.ERROR, "No Output file path provided\n");
-                    Usage();
-                    return 1;
+                    string flag = ShifArgs(ref args, "");
+                    if (flag == "-o")
+                    {
+                        outputpath = ShifArgs(ref args, "No output file path provided\n");
+                    }
+                    else if (flag == "-depth")
+                    {
+                        string d = ShifArgs(ref args, "No depth provided\n");
+                        if (!int.TryParse(d, out depth))
+                            Log(LogType.ERROR, "Could not parse depth");
+                    }
                 }
                 Grammar grammar = LoadDefaultGrammar();
                 int start = 0;
@@ -716,25 +728,41 @@ namespace random_art
                 Raylib.DrawTextureEx(DefaultTexture, new Vector2(0, 0), 0, WIDTH, Color.White);
                 Raylib.EndShaderMode();
                 Image image = Raylib.LoadImageFromScreen();
-                Raylib.ExportImage(image, OutputFilePath);
+                if (!Raylib.ExportImage(image, outputpath))
+                {
+                    Log(LogType.ERROR, $"Failed to export image to path: {outputpath}\n");
+                }
                 Raylib.EndDrawing();
                 Raylib.UnloadShader(s);
                 Raylib.UnloadImage(image);
                 Raylib.CloseWindow();
             }
-            else if (mode != null && mode.ToLower() == "gui")
+            else if (mode.Equals("gui", StringComparison.CurrentCultureIgnoreCase))
             {
-                Gui();
+                int depth = 20;
+                while (args.Length > 0)
+                {
+                    string flag = ShifArgs(ref args, "");
+                    if (flag == "-depth")
+                    {
+                        string d = ShifArgs(ref args, "No depth provided\n");
+                        if (!int.TryParse(d, out depth))
+                            Log(LogType.ERROR, "Could not parse depth");
+                    }
+                }
+                Gui(depth);
             }
             // TODO:
             //- You need a way to save and load the random function 
             //	- in a format so you can read it later and reuse it in the program
             //	- or same way of grammar handling
-            //- You need a way to save and load the grammar (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
+            //- You need a way to save and load the grammar
+            //  (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
             //- A random grammar generator
             //	- you need rules for generation
 
-            //- try GPU to accelerate this function which does evaluate the function at each node `static StringBuilder EvalFunction(Node f, int start, int end)`
+            //- try GPU to accelerate this function which does evaluate the function at each node (or the equivalent)
+            //  `static StringBuilder EvalFunction(Node f, int start, int end)`
             //- add time and think of other things
             return 0;
         }
