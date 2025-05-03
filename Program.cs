@@ -629,8 +629,8 @@ namespace random_art
         }
         static int Main(string[] args)
         {
-            foo();
-            return 0;
+            //foo();
+            //return 0;
             if (args.Length <= 0)
             {
                 Usage();
