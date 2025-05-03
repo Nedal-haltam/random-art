@@ -375,12 +375,10 @@ namespace random_art
             Raylib.ClearBackground(Color.White);
             for (int y = 0; y < HEIGHT; ++y)
             {
-                //float Normalizedy = ((float)y / HEIGHT);
                 float Normalizedy = ((float)y / HEIGHT) * 2 - 1;
                 for (int x = 0; x < WIDTH; ++x)
                 {
                     float Normalizedx = ((float)x / WIDTH) * 2 - 1;
-                    //float Normalizedx = ((float)x / WIDTH);
                     Color? c = Eval(ref f, Normalizedx, Normalizedy, min, max);
                     if (!c.HasValue)
                         return null;
@@ -511,7 +509,6 @@ namespace random_art
         }
         static Texture2D texture;
         static Texture2D? NextTexture;
-        static readonly Texture2D DefaultTexture = new() { Id = 1, Width = WIDTH, Height = HEIGHT, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
         static void UpdateTexture(ref Texture2D texture, Grammar grammar, int depth)
         {
             Node f = GrammarToNode(grammar, 0, depth);
@@ -656,11 +653,13 @@ namespace random_art
             fs.Append('}');
             return fs;
         }
+        public static Texture2D LoadDefaultTexture() => new() { Id = 1, Width = 1, Height = 1, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
         static void Gui(int depth)
         {
             Raylib.SetConfigFlags(ConfigFlags.AlwaysRunWindow | ConfigFlags.ResizableWindow);
             Raylib.InitWindow(WIDTH, HEIGHT, "Random Art");
             Raylib.SetTargetFPS(0);
+            Texture2D DefaultTexture = LoadDefaultTexture();
             Grammar grammar = LoadDefaultGrammar();
             Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
             while (!Raylib.WindowShouldClose())
@@ -675,9 +674,7 @@ namespace random_art
                     s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
                 }
                 Raylib.BeginShaderMode(s);
-                Raylib.DrawTextureRec(DefaultTexture, new(0, 0, width, -height), new(0, 0), Color.White);
-                //Raylib.DrawTexturePro(DefaultTexture, new Rectangle(0, 0, 0, 0), new Rectangle(0, 0, WIDTH, HEIGHT), new Vector2(0, 0), 0.0F, Color.White);
-                //Raylib.DrawTextureEx(DefaultTexture, new Vector2(0, 0), 0, WIDTH, Color.White);
+                Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, width, height), new(0, 0), 0, Color.White);
                 Raylib.EndShaderMode();
 
                 Raylib.DrawFPS(0, 0);
@@ -725,14 +722,17 @@ namespace random_art
                             Log(LogType.ERROR, "Could not parse depth");
                     }
                 }
+                int width = WIDTH;
+                int height = HEIGHT;
+                Texture2D DefaultTexture = LoadDefaultTexture();
                 Grammar grammar = LoadDefaultGrammar();
                 Raylib.SetWindowState(ConfigFlags.HiddenWindow);
-                Raylib.InitWindow(WIDTH, HEIGHT, "");
+                Raylib.InitWindow(width, height, "");
                 Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Color.Gray);
                 Raylib.BeginShaderMode(s);
-                Raylib.DrawTextureEx(DefaultTexture, new Vector2(0, 0), 0, WIDTH, Color.White);
+                Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, width, height), new(0, 0), 0, Color.White);
                 Raylib.EndShaderMode();
                 Image image = Raylib.LoadImageFromScreen();
                 if (!Raylib.ExportImage(image, outputpath))
