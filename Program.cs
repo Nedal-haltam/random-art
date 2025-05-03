@@ -29,26 +29,20 @@ namespace random_art
         If,
 
     }
+    public sealed class NodeUnary(Node expr)
+    {
+        public Node expr = expr;
+    }
     public sealed class NodeBinary(Node lhs, Node rhs)
     {
         public Node lhs = lhs;
         public Node rhs = rhs;
     }
-    public sealed class NodeUnary(Node expr)
-    {
-        public Node expr = expr;
-    }
-    public sealed class NodeTriple(Node first, Node second, Node third)
+    public sealed class NodeTernary(Node first, Node second, Node third)
     {
         public Node first = first;
         public Node second = second;
         public Node third = third;
-    }
-    public sealed class NodeIf(Node cond, Node then, Node elsee)
-    {
-        public Node cond = cond;
-        public Node then = then;
-        public Node elsee = elsee;
     }
     public struct Node
     {
@@ -58,8 +52,7 @@ namespace random_art
         public int branch;
         public NodeUnary unary;
         public NodeBinary binary;
-        public NodeTriple triple;
-        public NodeIf iff;
+        public NodeTernary ternary;
     }
     public struct Branch
     {
@@ -214,29 +207,29 @@ namespace random_art
                         if (rhs.Value.type != NodeType.Number) return null;
                         return EvalBinary(lhs.Value, rhs.Value, f.type);
                     case NodeType.If:
-                        Node? cond = EvalToNode(ref f.iff.cond, x, y, t);
+                        Node? cond = EvalToNode(ref f.ternary.first, x, y, t);
                         if (!cond.HasValue) return null;
                         if (cond.Value.type != NodeType.Boolean) return null;
                         if (cond.Value.boolean)
                         {
-                            Node? then = EvalToNode(ref f.iff.then, x, y, t);
+                            Node? then = EvalToNode(ref f.ternary.second, x, y, t);
                             if (!then.HasValue) return null;
                             return then.Value;
                         }
                         else
                         {
-                            Node? elsee = EvalToNode(ref f.iff.elsee, x, y, t);
+                            Node? elsee = EvalToNode(ref f.ternary.third, x, y, t);
                             if (!elsee.HasValue) return null;
                             return elsee.Value;
                         }
                     case NodeType.Triple:
-                        Node? first = EvalToNode(ref f.triple.first, x, y, t);
+                        Node? first = EvalToNode(ref f.ternary.first, x, y, t);
                         if (!first.HasValue) return null;
                         if (first.Value.type != NodeType.Number) return null;
-                        Node? second = EvalToNode(ref f.triple.second, x, y, t);
+                        Node? second = EvalToNode(ref f.ternary.second, x, y, t);
                         if (!second.HasValue) return null;
                         if (second.Value.type != NodeType.Number) return null;
-                        Node? third = EvalToNode(ref f.triple.third, x, y, t);
+                        Node? third = EvalToNode(ref f.ternary.third, x, y, t);
                         if (!third.HasValue) return null;
                         if (third.Value.type != NodeType.Number) return null;
                         return NodeTriple(NodeNumber(first.Value.number), NodeNumber(second.Value.number), NodeNumber(third.Value.number));
@@ -254,14 +247,14 @@ namespace random_art
                     return null;
                 if (c.Value.type != NodeType.Triple)
                     return null;
-                if (c.Value.triple.first.type != NodeType.Number)
+                if (c.Value.ternary.first.type != NodeType.Number)
                     return null;
-                if (c.Value.triple.second.type != NodeType.Number)
+                if (c.Value.ternary.second.type != NodeType.Number)
                     return null;
-                if (c.Value.triple.third.type != NodeType.Number)
+                if (c.Value.ternary.third.type != NodeType.Number)
                     return null;
 
-                return ToColor(new(c.Value.triple.first.number, c.Value.triple.second.number, c.Value.triple.third.number), min, max);
+                return ToColor(new(c.Value.ternary.first.number, c.Value.ternary.second.number, c.Value.ternary.third.number), min, max);
             }
 
             static Texture2D? GenerateTextureFromNode(Node f, int width, int height, float time)
@@ -288,7 +281,7 @@ namespace random_art
             }
             static void UpdateTexture(ref Texture2D texture, Grammar grammar, int width, int height, int depth, int time)
             {
-                Node f = foo(grammar, NodeBranch(grammar.startbranchindex), depth);
+                Node f = GrammarToNode(grammar, NodeBranch(grammar.startbranchindex), depth);
                 Texture2D? NextTexture = GenerateTextureFromNode(f, width, height, time);
                 if (NextTexture.HasValue)
                     texture = NextTexture.Value;
@@ -306,85 +299,28 @@ namespace random_art
                 return true;
             }
         }
-        static Node NodeBranch(int branch)
-        {
-            return new Node() { type = NodeType.Branch, branch = branch };
-        }
-        static Node NodeNumber(float number)
-        {
-            return new Node() { type = NodeType.Number, number = number };
-        }
-        static Node NodeBoolean(bool boolean)
-        {
-            return new Node() { type = NodeType.Boolean, boolean = boolean };
-        }
-        static Node NodeRandom()
-        {
-            return new Node() { type = NodeType.random, number = random.NextSingle() * 2 - 1 };
-        }
-        static Node NodeX()
-        {
-            return new Node() { type = NodeType.X };
-        }
-        static Node NodeY()
-        {
-            return new Node() { type = NodeType.Y };
-        }
-        static Node NodeT()
-        {
-            return new Node() { type = NodeType.T };
-        }
-        static Node NodeSQRT(Node expr)
-        {
-            return new Node() { type = NodeType.SQRT, unary = new(expr) };
-        }
-        static Node NodeADD(Node lhs, Node rhs)
-        {
-            return new Node() { type = NodeType.ADD, binary = new(lhs, rhs) };
-        }
-        static Node NodeDIV(Node lhs, Node rhs)
-        {
-            return new Node() { type = NodeType.DIV, binary = new(lhs, rhs) };
-        }
-        static Node NodeSUB(Node lhs, Node rhs)
-        {
-            return new Node() { type = NodeType.SUB, binary = new(lhs, rhs) };
-        }
-        static Node NodeMUL(Node lhs, Node rhs)
-        {
-            return new Node() { type = NodeType.MUL, binary = new(lhs, rhs) };
-        }
-        static Node NodeMOD(Node lhs, Node rhs)
-        {
-            return new Node() { type = NodeType.MOD, binary = new(lhs, rhs) };
-        }
-        static Node NodeGT(Node lhs, Node rhs)
-        {
-            return new Node() { type = NodeType.GT, binary = new(lhs, rhs) };
-        }
-        static Node NodeGTE(Node lhs, Node rhs)
-        {
-            return new Node() { type = NodeType.GTE, binary = new(lhs, rhs) };
-        }
+        static Node NodeBranch(int branch) => new() { type = NodeType.Branch, branch = branch };
+        static Node NodeNumber(float number) => new() { type = NodeType.Number, number = number };
+        static Node NodeBoolean(bool boolean) => new() { type = NodeType.Boolean, boolean = boolean };
+        static Node NodeRandom() => new() { type = NodeType.random, number = random.NextSingle() * 2 - 1 };
+        static Node NodeX() => new() { type = NodeType.X };
+        static Node NodeY() => new() { type = NodeType.Y };
+        static Node NodeT() => new() { type = NodeType.T };
+        static Node NodeSQRT(Node expr) => NodeUnary(expr, NodeType.SQRT);
+        static Node NodeADD(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.ADD);
+        static Node NodeDIV(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.DIV);
+        static Node NodeSUB(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.SUB);
+        static Node NodeMUL(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.MUL);
+        static Node NodeMOD(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.MOD);
+        static Node NodeGT(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.GT);
+        static Node NodeGTE(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.GTE);
+        static Node NodeIf(Node cond, Node then, Node elsee) => NodeTernary(cond, then, elsee, NodeType.If);
+        static Node NodeTriple(Node first, Node second, Node third) => NodeTernary(first, second, third, NodeType.Triple);
+        static Node NodeUnary(Node expr, NodeType type) => new() { type = type, unary = new(expr) };
+        static Node NodeBinary(Node lhs, Node rhs, NodeType type) => new() { type = type, binary = new(lhs, rhs) };
+        static Node NodeTernary(Node first, Node second, Node third, NodeType type) => new() { type = type, ternary = new(first, second, third) };
 
-        static Node NodeIf(Node cond, Node then, Node elsee)
-        {
-            return new() { type = NodeType.If, iff = new(cond, then, elsee) };
-        }
-        static Node NodeTriple(Node first, Node second, Node third)
-        {
-            return new Node() { type = NodeType.Triple, triple = new(first, second, third) };
-        }
-        static void NodeTriplePrint(ref NodeTriple triple)
-        {
-            Console.Write("triple(");
-            NodePrint(ref triple.first);
-            Console.Write(", ");
-            NodePrint(ref triple.second);
-            Console.Write(", ");
-            NodePrint(ref triple.third);
-            Console.Write(")");
-        }
+
         static void NodePrint(ref Node node)
         {
             switch (node.type)
@@ -422,20 +358,26 @@ namespace random_art
                     break;
                 case NodeType.If:
                     Console.Write($"if (");
-                    NodePrint(ref node.iff.cond);
+                    NodePrint(ref node.ternary.first);
                     Console.Write(") ");
                     Console.Write("then (");
-                    NodePrint(ref node.iff.then);
+                    NodePrint(ref node.ternary.second);
                     Console.Write(") ");
                     Console.Write("else (");
-                    NodePrint(ref node.iff.elsee);
+                    NodePrint(ref node.ternary.third);
                     Console.Write(")");
                     break;
                 case NodeType.Boolean:
                     Console.Write(node.boolean);
                     break;
                 case NodeType.Triple:
-                    NodeTriplePrint(ref node.triple);
+                    Console.Write("triple(");
+                    NodePrint(ref node.ternary.first);
+                    Console.Write(", ");
+                    NodePrint(ref node.ternary.second);
+                    Console.Write(", ");
+                    NodePrint(ref node.ternary.third);
+                    Console.Write(")");
                     break;
                 case NodeType.Branch:
                 default:
@@ -481,9 +423,9 @@ namespace random_art
                 case NodeType.SQRT:
                     return new($"(sqrt({NodeToShaderFunction(f.unary.expr)}))");
                 case NodeType.Triple:
-                    return new($"(vec3({NodeToShaderFunction(f.triple.first)}, {NodeToShaderFunction(f.triple.second)}, {NodeToShaderFunction(f.triple.third)}))");
+                    return new($"(vec3({NodeToShaderFunction(f.ternary.first)}, {NodeToShaderFunction(f.ternary.second)}, {NodeToShaderFunction(f.ternary.third)}))");
                 case NodeType.If:
-                    return new($"({NodeToShaderFunction(f.iff.cond)}) ? ({NodeToShaderFunction(f.iff.then)}) : ({NodeToShaderFunction(f.iff.elsee)})");
+                    return new($"({NodeToShaderFunction(f.ternary.first)}) ? ({NodeToShaderFunction(f.ternary.second)}) : ({NodeToShaderFunction(f.ternary.third)})");
                 case NodeType.Branch:
                 default:
                     UNREACHABLE("NodeToShaderFunction");
@@ -513,33 +455,25 @@ namespace random_art
                 terminalbranchindex = [1],
             };
         }
-        static Node NodeBinary(Node lhs, Node rhs, NodeType type)
-        {
-            return new() { type = type, binary = new(lhs, rhs) };
-        }
-        static Node NodeUnary(Node expr, NodeType type)
-        {
-            return new() { type = type, unary = new(expr) };
-        }
-        static Node foo(Grammar grammar, Node node, int depth)
+        static Node GrammarToNode(Grammar grammar, Node node, int depth)
         {
             if (depth <= 0)
             {
                 Branch b = grammar.branches[grammar.terminalbranchindex[random.Next(grammar.terminalbranchindex.Count)]];
-                return GrammarToNode(grammar, b.nodes[random.Next(b.nodes.Count)].node, 0);
+                return BranchToNode(grammar, b.nodes[random.Next(b.nodes.Count)].node, 0);
             }
             else
             {
                 Branch b = grammar.branches[node.branch];
-                return GrammarToNode(grammar, b.nodes[random.Next(b.nodes.Count)].node, depth - 1);
+                return BranchToNode(grammar, b.nodes[random.Next(b.nodes.Count)].node, depth - 1);
             }
         }
-        static Node GrammarToNode(Grammar grammar, Node node, int depth)
+        static Node BranchToNode(Grammar grammar, Node node, int depth)
         {
             switch (node.type)
             {
                 case NodeType.Branch:
-                    return foo(grammar, node, depth - 1);
+                    return GrammarToNode(grammar, node, depth - 1);
                 case NodeType.random:
                     return NodeNumber(node.number);
                 case NodeType.Number:
@@ -548,6 +482,8 @@ namespace random_art
                 case NodeType.Boolean:
                 case NodeType.T:
                     return node;
+                case NodeType.SQRT:
+                    return NodeUnary(BranchToNode(grammar, node.unary.expr, depth), node.type);
                 case NodeType.ADD:
                 case NodeType.MUL:
                 case NodeType.SUB:
@@ -555,21 +491,18 @@ namespace random_art
                 case NodeType.GTE:
                 case NodeType.MOD:
                 case NodeType.DIV:
-                    return NodeBinary(GrammarToNode(grammar, node.binary.lhs, depth), GrammarToNode(grammar, node.binary.rhs, depth), node.type);
-                case NodeType.SQRT:
-                    return NodeUnary(GrammarToNode(grammar, node.unary.expr, depth), node.type);
+                    return NodeBinary(BranchToNode(grammar, node.binary.lhs, depth), BranchToNode(grammar, node.binary.rhs, depth), node.type);
                 case NodeType.Triple:
-                    return NodeTriple(GrammarToNode(grammar, node.triple.first, depth), GrammarToNode(grammar, node.triple.second, depth), GrammarToNode(grammar, node.triple.third, depth));
                 case NodeType.If:
-                    return NodeIf(GrammarToNode(grammar, node.iff.cond, depth), GrammarToNode(grammar, node.iff.then, depth), GrammarToNode(grammar, node.iff.elsee, depth));
+                    return NodeTernary(BranchToNode(grammar, node.ternary.first, depth), BranchToNode(grammar, node.ternary.second, depth), BranchToNode(grammar, node.ternary.third, depth), node.type);
                 default:
-                    UNREACHABLE("GrammarToNode");
+                    UNREACHABLE("BranchToNode");
                     return new();
             }
         }
         static StringBuilder GrammarToShaderFunction(Grammar grammar, int depth)
         {
-            Node f = foo(grammar, NodeBranch(grammar.startbranchindex), depth);
+            Node f = GrammarToNode(grammar, NodeBranch(grammar.startbranchindex), depth);
             StringBuilder fs = new();
             string func = NodeToShaderFunction(f).ToString();
             fs.Append("#version 330\n");
@@ -581,7 +514,6 @@ namespace random_art
             fs.Append("float x = 2.0 * fragTexCoord.x - 1.0;\n");
             fs.Append("float y = 2.0 * fragTexCoord.y - 1.0;\n");
             fs.Append("float t = sin(csTIME);\n");
-            //fs.Append("float t = sqrt(csTIME);\n");
             fs.Append($"   vec3 tempcolor = {func};\n");
             fs.Append("    finalColor = vec4((tempcolor + 1) / 2.0, 1);\n");
             fs.Append('}');
@@ -725,10 +657,7 @@ namespace random_art
             //- A random grammar generator
             //	- you need rules for generation
 
-            //- try GPU to accelerate this function which does evaluate the function at each node (or the equivalent)
-            //  `static StringBuilder EvalFunction(Node f, int start, int end)`
-            //- add the third dimension tiiime, in this case we may redefine the binary operators (add, mul, ...) to take three inputs instead of just (lhs, rhs)
-            //- merge iff and triple into ternary
+            //- we may have to redefine the binary operators (add, mul, ...) to take three inputs instead of just (lhs, rhs), and to expand it to a variadic for that matter
             return 0;
         }
     }
