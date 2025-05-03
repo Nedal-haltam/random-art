@@ -121,10 +121,10 @@ namespace random_art
         }
         public static class FunctionalRandomArt
         {
-            static Color ToColor(Vector3 v, float min, float max) => 
-                new ((byte)((v.X - min) * (255.0f / (max - min))), 
-                    (byte) ((v.Y - min) * (255.0f / (max - min))), 
-                    (byte) ((v.Z - min) * (255.0f / (max - min))));
+            static Color ToColor(Vector3 v, float min, float max) =>
+                new((byte)((v.X - min) * (255.0f / (max - min))),
+                    (byte)((v.Y - min) * (255.0f / (max - min))),
+                    (byte)((v.Z - min) * (255.0f / (max - min))));
             static Node EvalBinary(Node lhs, Node rhs, NodeType type)
             {
                 switch (type)
@@ -290,7 +290,7 @@ namespace random_art
             }
             static bool GeneratePNGFromNode(Node f, string filepath, int width, int height, int time)
             {
-                Texture2D? texture= GenerateTextureFromNode(f, width, height, time);
+                Texture2D? texture = GenerateTextureFromNode(f, width, height, time);
                 if (!texture.HasValue)
                     return false;
                 Image image = Raylib.LoadImageFromTexture(texture.Value);
@@ -436,10 +436,10 @@ namespace random_art
         {
             return new()
             {
-                branches = 
+                branches =
                 [
                     new() { nodes = [new() { node = NodeTriple(NodeBranch(2), NodeBranch(2), NodeBranch(2))}] },
-                    new() { nodes = 
+                    new() { nodes =
                     [
                         new(NodeRandom(), 1),
                         new(NodeX(), 1),
@@ -554,6 +554,7 @@ namespace random_art
             }
             Raylib.UnloadShader(s);
             Raylib.CloseWindow();
+            Environment.Exit(0);
         }
         static void Cli(string filepath, int depth)
         {
@@ -561,7 +562,7 @@ namespace random_art
             int height = 800;
             Texture2D DefaultTexture = LoadDefaultTexture();
             Grammar grammar = LoadDefaultGrammar();
-            Raylib.SetWindowState(ConfigFlags.HiddenWindow);
+            Raylib.SetConfigFlags(ConfigFlags.HiddenWindow);
             Raylib.InitWindow(width, height, "");
             Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
             Raylib.BeginDrawing();
@@ -578,6 +579,7 @@ namespace random_art
             Raylib.UnloadShader(s);
             Raylib.UnloadImage(image);
             Raylib.CloseWindow();
+            Environment.Exit(0);
         }
         static void Usage()
         {
@@ -585,18 +587,57 @@ namespace random_art
             Log(LogType.NORMAL, "\nUsage: \n");
             Log(LogType.NORMAL, $".\\random-art.exe [gui|cli] [option(s)]\n");
             Log(LogType.NORMAL, "\nOptions:\n");
-            Log(LogType.NORMAL, $"\t{"-o <file>", -15} : place the output image into <file>\n");
-            Log(LogType.NORMAL, $"\t{"-depth <depth>", -15} : specify the depth of the generated function\n\n");
+            Log(LogType.NORMAL, $"\t{"-o <file>",-15} : place the output image into <file>\n");
+            Log(LogType.NORMAL, $"\t{"-depth <depth>",-15} : specify the depth of the generated function\n\n");
+        }
+        static void foo()
+        {
+            Raylib.InitWindow(800, 800, "raylib [core] example - 3d camera free");
+
+            Camera3D camera;
+            camera.Position = new Vector3(10.0f, 10.0f, 10.0f);
+            camera.Target = new Vector3(0.0f, 0.0f, 0.0f);
+            camera.Up = new Vector3(0.0f, 1.0f, 0.0f);
+            camera.FovY = 45.0f;
+            camera.Projection = CameraProjection.Perspective;
+
+            Vector3 cubePosition = new(0.0f, 0.0f, 0.0f);
+            Raylib.SetTargetFPS(60);
+            while (!Raylib.WindowShouldClose())
+            {
+                Raylib.UpdateCamera(ref camera, CameraMode.Free);
+                if (Raylib.IsKeyDown(KeyboardKey.Z))
+                {
+                    camera.Target = new Vector3(0.0f, 0.0f, 0.0f);
+                }
+
+                Raylib.BeginDrawing();
+                Raylib.ClearBackground(Color.RayWhite);
+
+                Raylib.BeginMode3D(camera);
+                Raylib.DrawPoint3D(cubePosition, Color.Brown);
+                Raylib.DrawCircle3D(cubePosition, 7, new(0, 0, 0), 0, Color.Blue);
+                Raylib.DrawCube(cubePosition, 2.0f, 2.0f, 2.0f, Color.Red);
+                Raylib.DrawCubeWires(cubePosition, 2.0f, 2.0f, 2.0f, Color.Maroon);
+                Raylib.DrawGrid(10, 1.0f);
+                Raylib.EndMode3D();
+
+                Raylib.EndDrawing();
+            }
+
+            Raylib.CloseWindow();
         }
         static int Main(string[] args)
         {
+            foo();
+            return 0;
             if (args.Length <= 0)
             {
                 Usage();
                 Environment.Exit(0);
             }
-            
-            string mode = ShifArgs(ref args, "No mode provided\n");
+
+            string mode = ShifArgs(ref args, "UNREACHABLE");
 
             if (mode.Equals("-h", StringComparison.CurrentCultureIgnoreCase)) { Usage(); Environment.Exit(0); }
 
