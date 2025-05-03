@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 using static System.Net.Mime.MediaTypeNames;
 using System.Reflection;
 using Image = Raylib_cs.Image;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable RETURN0001
@@ -20,9 +21,9 @@ namespace random_art
         Branch,
         Number, random, X, Y, T, Boolean,
 
-        ADD, MUL, SUB, GT, GTE, MOD, DIV,
-
         SQRT,
+
+        ADD, MUL, SUB, GT, GTE, MOD, DIV,
 
         Triple,
         If,
@@ -54,6 +55,7 @@ namespace random_art
         public NodeType type;
         public float number;
         public bool boolean;
+        public int branch;
         public NodeUnary unary;
         public NodeBinary binary;
         public NodeTriple triple;
@@ -61,27 +63,10 @@ namespace random_art
     }
     public struct Branch
     {
-        public struct BranchNode
+        public struct BranchNode(Node node, float prob)
         {
-            public NodeType type;
-
-            public Node node;
-            public float probability;
-            public int Branch;
-
-            public int exprbranch;
-
-            public int lhsbranch;
-            public int rhsbranch;
-
-            public int firstbranch;
-            public int secondbranch;
-            public int thirdbranch;
-
-            public int iffbranch;
-            public int thenbranch;
-            public int elseebranch;
-
+            public Node node = node;
+            public float prob = prob;
         }
         public List<BranchNode> nodes;
     }
@@ -89,7 +74,7 @@ namespace random_art
     {
         public List<Branch> branches;
         public int startbranchindex;
-        public int terminalbranchindex;
+        public List<int> terminalbranchindex;
     }
     internal sealed class Program
     {
@@ -177,7 +162,7 @@ namespace random_art
             {
                 switch (type)
                 {
-                    case NodeType.SQRT: return NodeNumber(MathF.Sqrt(MathF.Abs(expr.number)));
+                    case NodeType.SQRT: return NodeNumber(MathF.Sqrt(expr.number));
                     case NodeType.ADD:
                     case NodeType.Branch:
                     case NodeType.SUB:
@@ -303,7 +288,7 @@ namespace random_art
             }
             static void UpdateTexture(ref Texture2D texture, Grammar grammar, int width, int height, int depth, int time)
             {
-                Node f = GrammarToNode(grammar, grammar.startbranchindex, depth);
+                Node f = foo(grammar, NodeBranch(grammar.startbranchindex), depth);
                 Texture2D? NextTexture = GenerateTextureFromNode(f, width, height, time);
                 if (NextTexture.HasValue)
                     texture = NextTexture.Value;
@@ -321,7 +306,10 @@ namespace random_art
                 return true;
             }
         }
-
+        static Node NodeBranch(int branch)
+        {
+            return new Node() { type = NodeType.Branch, branch = branch };
+        }
         static Node NodeNumber(float number)
         {
             return new Node() { type = NodeType.Number, number = number };
@@ -508,68 +496,72 @@ namespace random_art
             {
                 branches = 
                 [
-                    new() { nodes = [new() { type = NodeType.Triple, firstbranch = 2, secondbranch = 2, thenbranch = 2}] },
-                    new() { nodes = [new() { type = NodeType.random}, new() { type = NodeType.X}, new() { type = NodeType.Y}, new() { type = NodeType.T}] },
-                    new() { nodes = [new() { type = NodeType.Branch, Branch = 1}, new() { type = NodeType.ADD, lhsbranch = 2, rhsbranch = 2}, new() { type = NodeType.MUL, lhsbranch = 2, rhsbranch = 2 }] },
+                    new() { nodes = [new() { node = NodeTriple(NodeBranch(2), NodeBranch(2), NodeBranch(2))}] },
+                    new() { nodes = 
+                    [
+                        new(NodeRandom(), 1),
+                        new(NodeX(), 1),
+                        new(NodeY(), 1),
+                        new(NodeT(), 1),
+                        new(NodeSQRT(NodeADD(NodeADD(NodeMUL(NodeX(), NodeX()),
+                                 NodeMUL(NodeY(), NodeY())),
+                                 NodeMUL(NodeT(), NodeT()))), 1),
+                    ] },
+                    new() { nodes = [new(NodeBranch(1), 1), new(NodeADD(NodeBranch(2), NodeBranch(2)), 1), new(NodeMUL(NodeBranch(2), NodeBranch(2)), 1)] },
                 ],
                 startbranchindex = 0,
-                terminalbranchindex = 1,
+                terminalbranchindex = [1],
             };
         }
-        static Node GrammarToNode(Grammar grammar, int branch, int depth)
+        static Node NodeBinary(Node lhs, Node rhs, NodeType type)
         {
-            Branch b;
-            int next;
-            Branch.BranchNode branchnode;
+            return new() { type = type, binary = new(lhs, rhs) };
+        }
+        static Node NodeUnary(Node expr, NodeType type)
+        {
+            return new() { type = type, unary = new(expr) };
+        }
+        static Node foo(Grammar grammar, Node node, int depth)
+        {
             if (depth <= 0)
             {
-                b = grammar.branches[grammar.terminalbranchindex];
-                next = random.Next(b.nodes.Count);
-                branchnode = b.nodes[next];
+                Branch b = grammar.branches[grammar.terminalbranchindex[random.Next(grammar.terminalbranchindex.Count)]];
+                return GrammarToNode(grammar, b.nodes[random.Next(b.nodes.Count)].node, 0);
             }
             else
             {
-                b = grammar.branches[branch];
-                next = random.Next(b.nodes.Count);
-                branchnode = b.nodes[next];
+                Branch b = grammar.branches[node.branch];
+                return GrammarToNode(grammar, b.nodes[random.Next(b.nodes.Count)].node, depth - 1);
             }
-            switch (branchnode.type)
+        }
+        static Node GrammarToNode(Grammar grammar, Node node, int depth)
+        {
+            switch (node.type)
             {
-
                 case NodeType.Branch:
-                    return GrammarToNode(grammar, branchnode.Branch, depth - 1);
-                case NodeType.Number: 
-                    return NodeNumber(branchnode.node.number);
+                    return foo(grammar, node, depth - 1);
                 case NodeType.random:
-                    return NodeRandom();
+                    return NodeNumber(node.number);
+                case NodeType.Number:
                 case NodeType.X:
-                    return NodeX();
                 case NodeType.Y:
-                    return NodeY();
+                case NodeType.Boolean:
                 case NodeType.T:
-                    return NodeT();
-                case NodeType.Boolean: 
-                    return NodeBoolean(branchnode.node.boolean);
+                    return node;
                 case NodeType.ADD:
-                    return NodeADD(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
-                case NodeType.MUL: 
-                    return NodeMUL(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
-                case NodeType.SUB: 
-                    return NodeSUB(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
-                case NodeType.GT: 
-                    return NodeGT(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
-                case NodeType.GTE: 
-                    return NodeGTE(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
-                case NodeType.MOD: 
-                    return NodeMOD(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
-                case NodeType.DIV: 
-                    return NodeDIV(GrammarToNode(grammar, branchnode.lhsbranch, depth - 1), GrammarToNode(grammar, branchnode.rhsbranch, depth - 1));
-                case NodeType.SQRT: 
-                    return NodeSQRT(GrammarToNode(grammar, branchnode.exprbranch, depth - 1));
+                case NodeType.MUL:
+                case NodeType.SUB:
+                case NodeType.GT:
+                case NodeType.GTE:
+                case NodeType.MOD:
+                case NodeType.DIV:
+                    return NodeBinary(GrammarToNode(grammar, node.binary.lhs, depth), GrammarToNode(grammar, node.binary.rhs, depth), node.type);
+                case NodeType.SQRT:
+                    return NodeUnary(GrammarToNode(grammar, node.unary.expr, depth), node.type);
                 case NodeType.Triple:
-                    return NodeTriple(GrammarToNode(grammar, branchnode.firstbranch, depth - 1), GrammarToNode(grammar, branchnode.secondbranch, depth - 1), GrammarToNode(grammar, branchnode.thirdbranch, depth - 1));
+                    return NodeTriple(GrammarToNode(grammar, node.triple.first, depth), GrammarToNode(grammar, node.triple.second, depth), GrammarToNode(grammar, node.triple.third, depth));
                 case NodeType.If:
-                    return NodeIf(GrammarToNode(grammar, branchnode.iffbranch, depth - 1), GrammarToNode(grammar, branchnode.thenbranch, depth - 1), GrammarToNode(grammar, branchnode.elseebranch, depth - 1));
+                    return NodeIf(GrammarToNode(grammar, node.iff.cond, depth), GrammarToNode(grammar, node.iff.then, depth), GrammarToNode(grammar, node.iff.elsee, depth));
                 default:
                     UNREACHABLE("GrammarToNode");
                     return new();
@@ -577,7 +569,7 @@ namespace random_art
         }
         static StringBuilder GrammarToShaderFunction(Grammar grammar, int depth)
         {
-            Node f = GrammarToNode(grammar, grammar.startbranchindex, depth);
+            Node f = foo(grammar, NodeBranch(grammar.startbranchindex), depth);
             StringBuilder fs = new();
             string func = NodeToShaderFunction(f).ToString();
             fs.Append("#version 330\n");
@@ -589,7 +581,7 @@ namespace random_art
             fs.Append("float x = 2.0 * fragTexCoord.x - 1.0;\n");
             fs.Append("float y = 2.0 * fragTexCoord.y - 1.0;\n");
             fs.Append("float t = sin(csTIME);\n");
-            //fs.Append("float t = (csTIME);\n");
+            //fs.Append("float t = sqrt(csTIME);\n");
             fs.Append($"   vec3 tempcolor = {func};\n");
             fs.Append("    finalColor = vec4((tempcolor + 1) / 2.0, 1);\n");
             fs.Append('}');
@@ -611,9 +603,9 @@ namespace random_art
             {
                 width = Raylib.GetScreenWidth();
                 height = Raylib.GetScreenHeight();
+                time += Raylib.GetFrameTime();
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Color.Gray);
-                time += Raylib.GetFrameTime();
                 Raylib.SetShaderValue(s, Raylib.GetShaderLocation(s, "csTIME"), time, ShaderUniformDataType.Float);
                 if (Raylib.IsKeyPressed(KeyboardKey.R))
                 {
@@ -629,6 +621,30 @@ namespace random_art
                 Raylib.EndDrawing();
             }
             Raylib.UnloadShader(s);
+            Raylib.CloseWindow();
+        }
+        static void Cli(string filepath, int depth)
+        {
+            int width = 800;
+            int height = 800;
+            Texture2D DefaultTexture = LoadDefaultTexture();
+            Grammar grammar = LoadDefaultGrammar();
+            Raylib.SetWindowState(ConfigFlags.HiddenWindow);
+            Raylib.InitWindow(width, height, "");
+            Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
+            Raylib.BeginDrawing();
+            Raylib.ClearBackground(Color.Gray);
+            Raylib.BeginShaderMode(s);
+            Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, width, height), new(0, 0), 0, Color.White);
+            Raylib.EndShaderMode();
+            Image image = Raylib.LoadImageFromScreen();
+            if (!Raylib.ExportImage(image, filepath))
+            {
+                Log(LogType.ERROR, $"Failed to export image to path: {filepath}\n");
+            }
+            Raylib.EndDrawing();
+            Raylib.UnloadShader(s);
+            Raylib.UnloadImage(image);
             Raylib.CloseWindow();
         }
         static void Usage()
@@ -667,30 +683,14 @@ namespace random_art
                     {
                         string d = ShifArgs(ref args, "No depth provided\n");
                         if (!int.TryParse(d, out depth))
-                            Log(LogType.ERROR, "Could not parse depth");
+                            Log(LogType.ERROR, "Could not parse depth\n");
+                    }
+                    else
+                    {
+                        Log(LogType.ERROR, "invalid flag\n");
                     }
                 }
-                int width = 800;
-                int height = 800;
-                Texture2D DefaultTexture = LoadDefaultTexture();
-                Grammar grammar = LoadDefaultGrammar();
-                Raylib.SetWindowState(ConfigFlags.HiddenWindow);
-                Raylib.InitWindow(width, height, "");
-                Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
-                Raylib.BeginDrawing();
-                Raylib.ClearBackground(Color.Gray);
-                Raylib.BeginShaderMode(s);
-                Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, width, height), new(0, 0), 0, Color.White);
-                Raylib.EndShaderMode();
-                Image image = Raylib.LoadImageFromScreen();
-                if (!Raylib.ExportImage(image, outputpath))
-                {
-                    Log(LogType.ERROR, $"Failed to export image to path: {outputpath}\n");
-                }
-                Raylib.EndDrawing();
-                Raylib.UnloadShader(s);
-                Raylib.UnloadImage(image);
-                Raylib.CloseWindow();
+                Cli(outputpath, depth);
             }
             else if (mode.Equals("gui", StringComparison.CurrentCultureIgnoreCase))
             {
@@ -702,7 +702,11 @@ namespace random_art
                     {
                         string d = ShifArgs(ref args, "No depth provided\n");
                         if (!int.TryParse(d, out depth))
-                            Log(LogType.ERROR, "Could not parse depth");
+                            Log(LogType.ERROR, "Could not parse depth\n");
+                    }
+                    else
+                    {
+                        Log(LogType.ERROR, "invalid flag\n");
                     }
                 }
                 Gui(depth);
@@ -724,6 +728,7 @@ namespace random_art
             //- try GPU to accelerate this function which does evaluate the function at each node (or the equivalent)
             //  `static StringBuilder EvalFunction(Node f, int start, int end)`
             //- add the third dimension tiiime, in this case we may redefine the binary operators (add, mul, ...) to take three inputs instead of just (lhs, rhs)
+            //- merge iff and triple into ternary
             return 0;
         }
     }
