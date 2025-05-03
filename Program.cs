@@ -511,7 +511,7 @@ namespace random_art
         }
         static Texture2D texture;
         static Texture2D? NextTexture;
-        static readonly Texture2D DefaultTexture = new() { Id = 1, Height = 1, Width = 1, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
+        static readonly Texture2D DefaultTexture = new() { Id = 1, Width = WIDTH, Height = HEIGHT, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
         static void UpdateTexture(ref Texture2D texture, Grammar grammar, int depth)
         {
             Node f = GrammarToNode(grammar, 0, depth);
@@ -658,12 +658,15 @@ namespace random_art
         }
         static void Gui(int depth)
         {
+            Raylib.SetConfigFlags(ConfigFlags.AlwaysRunWindow | ConfigFlags.ResizableWindow);
             Raylib.InitWindow(WIDTH, HEIGHT, "Random Art");
             Raylib.SetTargetFPS(0);
             Grammar grammar = LoadDefaultGrammar();
             Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
             while (!Raylib.WindowShouldClose())
             {
+                int width = Raylib.GetScreenWidth();
+                int height = Raylib.GetScreenHeight();
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Color.Gray);
                 if (Raylib.IsKeyPressed(KeyboardKey.R))
@@ -672,7 +675,9 @@ namespace random_art
                     s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
                 }
                 Raylib.BeginShaderMode(s);
-                Raylib.DrawTextureEx(DefaultTexture, new Vector2(0, 0), 0, WIDTH, Color.White);
+                Raylib.DrawTextureRec(DefaultTexture, new(0, 0, width, -height), new(0, 0), Color.White);
+                //Raylib.DrawTexturePro(DefaultTexture, new Rectangle(0, 0, 0, 0), new Rectangle(0, 0, WIDTH, HEIGHT), new Vector2(0, 0), 0.0F, Color.White);
+                //Raylib.DrawTextureEx(DefaultTexture, new Vector2(0, 0), 0, WIDTH, Color.White);
                 Raylib.EndShaderMode();
 
                 Raylib.DrawFPS(0, 0);
@@ -721,6 +726,7 @@ namespace random_art
                     }
                 }
                 Grammar grammar = LoadDefaultGrammar();
+                Raylib.SetWindowState(ConfigFlags.HiddenWindow);
                 Raylib.InitWindow(WIDTH, HEIGHT, "");
                 Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
                 Raylib.BeginDrawing();
