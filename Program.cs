@@ -10,6 +10,11 @@ using static System.Net.Mime.MediaTypeNames;
 using System.Reflection;
 using Image = Raylib_cs.Image;
 using static System.Runtime.InteropServices.JavaScript.JSType;
+using System.Text.RegularExpressions;
+using static System.Runtime.CompilerServices.RuntimeHelpers;
+using System.Security.Cryptography;
+using System.Reflection.Metadata;
+using System.ComponentModel;
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable RETURN0001
@@ -18,16 +23,12 @@ namespace random_art
 {
     public enum NodeType
     {
-        Branch,
         Number, random, X, Y, T, Boolean,
-
         SQRT,
-
         ADD, MUL, SUB, GT, GTE, MOD, DIV,
-
         Triple,
         If,
-
+        Branch,
     }
     public sealed class NodeUnary(Node expr)
     {
@@ -261,6 +262,8 @@ namespace random_art
             {
                 float min = -1;
                 float max = 1;
+                Raylib.SetConfigFlags(ConfigFlags.HiddenWindow);
+                Raylib.InitWindow(width, height, "");
                 RenderTexture2D texture = Raylib.LoadRenderTexture(width, height);
                 Raylib.BeginTextureMode(texture);
                 Raylib.ClearBackground(Color.White);
@@ -277,6 +280,7 @@ namespace random_art
                     }
                 }
                 Raylib.EndTextureMode();
+                Raylib.CloseWindow();
                 return texture.Texture;
             }
             static void UpdateTexture(ref Texture2D texture, Grammar grammar, int width, int height, int depth, int time)
@@ -288,7 +292,7 @@ namespace random_art
                 else
                     UNREACHABLE("UpdateTexture");
             }
-            static bool GeneratePNGFromNode(Node f, string filepath, int width, int height, int time)
+            public static bool GeneratePNGFromNode(Node f, string filepath, int width, int height, int time)
             {
                 Texture2D? texture = GenerateTextureFromNode(f, width, height, time);
                 if (!texture.HasValue)
@@ -323,72 +327,11 @@ namespace random_art
 
         static void NodePrint(ref Node node)
         {
-            switch (node.type)
-            {
-                case NodeType.Number:
-                case NodeType.random:
-                    Console.Write(node.number);
-                    break;
-                case NodeType.X:
-                    Console.Write("x");
-                    break;
-                case NodeType.Y:
-                    Console.Write("y");
-                    break;
-                case NodeType.T:
-                    Console.Write("t");
-                    break;
-                case NodeType.SQRT:
-                    Console.Write($"{node.type}(");
-                    NodePrint(ref node.unary.expr);
-                    Console.Write(")");
-                    break;
-                case NodeType.ADD:
-                case NodeType.SUB:
-                case NodeType.MUL:
-                case NodeType.MOD:
-                case NodeType.GT:
-                case NodeType.GTE:
-                case NodeType.DIV:
-                    Console.Write($"{node.type}(");
-                    NodePrint(ref node.binary.lhs);
-                    Console.Write(", ");
-                    NodePrint(ref node.binary.rhs);
-                    Console.Write(")");
-                    break;
-                case NodeType.If:
-                    Console.Write($"if (");
-                    NodePrint(ref node.ternary.first);
-                    Console.Write(") ");
-                    Console.Write("then (");
-                    NodePrint(ref node.ternary.second);
-                    Console.Write(") ");
-                    Console.Write("else (");
-                    NodePrint(ref node.ternary.third);
-                    Console.Write(")");
-                    break;
-                case NodeType.Boolean:
-                    Console.Write(node.boolean);
-                    break;
-                case NodeType.Triple:
-                    Console.Write("triple(");
-                    NodePrint(ref node.ternary.first);
-                    Console.Write(", ");
-                    NodePrint(ref node.ternary.second);
-                    Console.Write(", ");
-                    NodePrint(ref node.ternary.third);
-                    Console.Write(")");
-                    break;
-                case NodeType.Branch:
-                default:
-                    UNREACHABLE("NodePrint");
-                    return;
-            }
+            Console.Write(NodeToSb(ref node).ToString());
         }
         static void NodePrintln(ref Node node)
         {
-            NodePrint(ref node);
-            Console.WriteLine();
+            Console.WriteLine(NodeToSb(ref node).ToString());
         }
         static readonly Random random = new();
         static StringBuilder NodeToShaderFunction(Node f)
@@ -425,7 +368,7 @@ namespace random_art
                 case NodeType.Triple:
                     return new($"(vec3({NodeToShaderFunction(f.ternary.first)}, {NodeToShaderFunction(f.ternary.second)}, {NodeToShaderFunction(f.ternary.third)}))");
                 case NodeType.If:
-                    return new($"({NodeToShaderFunction(f.ternary.first)}) ? ({NodeToShaderFunction(f.ternary.second)}) : ({NodeToShaderFunction(f.ternary.third)})");
+                    return new($"(({NodeToShaderFunction(f.ternary.first)}) ? ({NodeToShaderFunction(f.ternary.second)}) : ({NodeToShaderFunction(f.ternary.third)}))");
                 case NodeType.Branch:
                 default:
                     UNREACHABLE("NodeToShaderFunction");
@@ -500,9 +443,8 @@ namespace random_art
                     return new();
             }
         }
-        static StringBuilder GrammarToShaderFunction(Grammar grammar, int depth)
+        static StringBuilder NodeToShader(Node f)
         {
-            Node f = GrammarToNode(grammar, NodeBranch(grammar.startbranchindex), depth);
             StringBuilder fs = new();
             string func = NodeToShaderFunction(f).ToString();
             fs.Append("#version 330\n");
@@ -519,6 +461,11 @@ namespace random_art
             fs.Append('}');
             return fs;
         }
+        static (Node, StringBuilder) GrammarToShader(Grammar grammar, int depth)
+        {
+            Node f = GrammarToNode(grammar, NodeBranch(grammar.startbranchindex), depth);
+            return (f, NodeToShader(f));
+        }
         public static Texture2D LoadDefaultTexture() => new() { Id = 1, Width = 1, Height = 1, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
         static void Gui(int depth)
         {
@@ -530,7 +477,9 @@ namespace random_art
             Texture2D DefaultTexture = LoadDefaultTexture();
             Grammar grammar = LoadDefaultGrammar();
             float time = 0;
-            Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
+            (Node node, StringBuilder fs) = GrammarToShader(grammar, depth);
+            Shader s = Raylib.LoadShaderFromMemory(null, fs.ToString());
+            Node currentnode = node;
             while (!Raylib.WindowShouldClose())
             {
                 width = Raylib.GetScreenWidth();
@@ -542,8 +491,23 @@ namespace random_art
                 if (Raylib.IsKeyPressed(KeyboardKey.R))
                 {
                     time = 0;
+                    (Node tempnode, StringBuilder tempfs) = GrammarToShader(grammar, depth);
+                    currentnode = tempnode;
                     Raylib.UnloadShader(s);
-                    s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
+                    s = Raylib.LoadShaderFromMemory(null, tempfs.ToString());
+                }
+                if (Raylib.IsKeyPressed(KeyboardKey.S))
+                {
+                    NodeSave($"Node.txt", currentnode);
+                }
+                if (Raylib.IsKeyPressed(KeyboardKey.L))
+                {
+                    time = 0;
+                    Node tempnode = NodeLoad("Node.txt");
+                    StringBuilder tempfs = NodeToShader(tempnode);
+                    currentnode = tempnode;
+                    Raylib.UnloadShader(s);
+                    s = Raylib.LoadShaderFromMemory(null, tempfs.ToString());
                 }
                 Raylib.BeginShaderMode(s);
                 Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, width, height), new(0, 0), 0, Color.White);
@@ -564,7 +528,7 @@ namespace random_art
             Grammar grammar = LoadDefaultGrammar();
             Raylib.SetConfigFlags(ConfigFlags.HiddenWindow);
             Raylib.InitWindow(width, height, "");
-            Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShaderFunction(grammar, depth).ToString());
+            Shader s = Raylib.LoadShaderFromMemory(null, GrammarToShader(grammar, depth).ToString());
             Raylib.BeginDrawing();
             Raylib.ClearBackground(Color.Gray);
             Raylib.BeginShaderMode(s);
@@ -581,6 +545,28 @@ namespace random_art
             Raylib.CloseWindow();
             Environment.Exit(0);
         }
+        static void NodeToImage(Node f, int width, int height, string filepath)
+        {
+            Texture2D DefaultTexture = LoadDefaultTexture();
+            Grammar grammar = LoadDefaultGrammar();
+            Raylib.SetConfigFlags(ConfigFlags.HiddenWindow);
+            Raylib.InitWindow(width, height, "");
+            Shader s = Raylib.LoadShaderFromMemory(null, NodeToShader(f).ToString());
+            Raylib.BeginDrawing();
+            Raylib.ClearBackground(Color.Gray);
+            Raylib.BeginShaderMode(s);
+            Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, width, height), new(0, 0), 0, Color.White);
+            Raylib.EndShaderMode();
+            Image image = Raylib.LoadImageFromScreen();
+            if (!Raylib.ExportImage(image, filepath))
+            {
+                Log(LogType.ERROR, $"Failed to export image to path: {filepath}\n");
+            }
+            Raylib.EndDrawing();
+            Raylib.UnloadShader(s);
+            Raylib.UnloadImage(image);
+            Raylib.CloseWindow();
+        }
         static void Usage()
         {
             // TODO: update usage to suite the features available
@@ -590,7 +576,7 @@ namespace random_art
             Log(LogType.NORMAL, $"\t{"-o <file>",-15} : place the output image into <file>\n");
             Log(LogType.NORMAL, $"\t{"-depth <depth>",-15} : specify the depth of the generated function\n\n");
         }
-        static void foo()
+        static void expr3d()
         {
             Raylib.InitWindow(800, 800, "raylib [core] example - 3d camera free");
 
@@ -624,19 +610,260 @@ namespace random_art
 
                 Raylib.EndDrawing();
             }
-
             Raylib.CloseWindow();
+        }
+        static Node LoadAllNodes(bool cond)
+        {
+            float r;
+            if (cond)
+                r = -0.65136623f;
+            else
+                r = -0.48348713f;
+            //TODO: handle the branch in saving/loading the grammar 
+            return NodeIf(
+                NodeGTE(NodeMUL(NodeX(), NodeY()), NodeIf(NodeGT(NodeX(), NodeNumber(0)), NodeSQRT(NodeMUL(NodeX(), NodeX())), NodeY())),
+                NodeIf(NodeBoolean(cond), NodeTriple(NodeADD(NodeX(), NodeY()), NodeADD(NodeX(), NodeY()), NodeADD(NodeX(), NodeY())), NodeTriple(NodeMUL(NodeX(), NodeX()), NodeMUL(NodeY(), NodeY()), NodeMUL(NodeT(), NodeT()))),
+                NodeTriple(NodeSUB(NodeX(), NodeY()), NodeMOD(NodeX(), NodeY()), NodeDIV(NodeNumber(0.5f), NodeADD(NodeNumber(r), NodeNumber(0.2f)))));
+        }
+        static StringBuilder NodeToSb(ref Node node)
+        {
+            StringBuilder sb = new StringBuilder();
+            switch (node.type)
+            {
+                case NodeType.Number:
+                case NodeType.random:
+                    sb.Append(node.number);
+                    break;
+                case NodeType.X:
+                    sb.Append("x");
+                    break;
+                case NodeType.Y:
+                    sb.Append("y");
+                    break;
+                case NodeType.T:
+                    sb.Append("t");
+                    break;
+                case NodeType.SQRT:
+                    sb.Append($"{node.type}(");
+                    sb.Append(NodeToSb(ref node.unary.expr));
+                    sb.Append(")");
+                    break;
+                case NodeType.ADD:
+                case NodeType.SUB:
+                case NodeType.MUL:
+                case NodeType.MOD:
+                case NodeType.GT:
+                case NodeType.GTE:
+                case NodeType.DIV:
+                    sb.Append($"{node.type}(");
+                    sb.Append(NodeToSb(ref node.binary.lhs));
+                    sb.Append(",");
+                    sb.Append(NodeToSb(ref node.binary.rhs));
+                    sb.Append(")");
+                    break;
+                case NodeType.If:
+                    sb.Append($"if(");
+                    sb.Append(NodeToSb(ref node.ternary.first));
+                    sb.Append(",");
+                    sb.Append(NodeToSb(ref node.ternary.second));
+                    sb.Append(",");
+                    sb.Append(NodeToSb(ref node.ternary.third));
+                    sb.Append(")");
+                    break;
+                case NodeType.Boolean:
+                    sb.Append(node.boolean);
+                    break;
+                case NodeType.Triple:
+                    sb.Append("triple(");
+                    sb.Append(NodeToSb(ref node.ternary.first));
+                    sb.Append(",");
+                    sb.Append(NodeToSb(ref node.ternary.second));
+                    sb.Append(",");
+                    sb.Append(NodeToSb(ref node.ternary.third));
+                    sb.Append(")");
+                    break;
+                case NodeType.Branch:
+                    sb.Append($"{node.type}({node.branch})");
+                    break;
+                default:
+                    UNREACHABLE("NodeToSb");
+                    return new();
+            }
+            return sb;
+        }
+        static void NodeSave(string filepath, Node node)
+        {
+            StringBuilder sb = NodeToSb(ref node);
+            File.WriteAllText(filepath, sb.ToString());
+        }
+        static char? peek(string src, ref int currindex, int offset = 0)
+        {
+            if (currindex + offset < src.Length)
+            {
+                return src[currindex + offset];
+            }
+            return null;
+        }
+        static char? peek(char type, string src, ref int currindex, int offset = 0)
+        {
+            char? token = peek(src, ref currindex, offset);
+            if (token.HasValue && token.Value == type)
+            {
+                return token;
+            }
+            return null;
+        }
+        static char consume(string src, ref int currindex)
+        {
+            return src.ElementAt(currindex++);
+        }
+        static char? tryconsumeerr(char type, string src, ref int currindex)
+        {
+            if (peek(type, src, ref currindex).HasValue)
+            {
+                return consume(src, ref currindex);
+            }
+            Log(LogType.ERROR, $"Error Expected {type}");
+            Environment.Exit(1);
+            return null;
+        }
+#pragma warning disable CS8629
+        static NodeType StringToType(string token)
+        {
+            switch (token)
+            {
+                case "x":
+                    return NodeType.X;
+                case "y":
+                    return NodeType.Y;
+                case "t":
+                    return NodeType.T;
+                case "true":
+                case "false":
+                    return NodeType.Boolean;
+                case "sqrt":
+                    return NodeType.SQRT;
+                case "add":
+                    return NodeType.ADD;
+                case "mul":
+                    return NodeType.MUL;
+                case "sub":
+                    return NodeType.SUB;
+                case "gt":
+                    return NodeType.GT;
+                case "gte":
+                    return NodeType.GTE;
+                case "mod":
+                    return NodeType.MOD;
+                case "div":
+                    return NodeType.DIV;
+                case "if":
+                    return NodeType.If;
+                case "triple":
+                    return NodeType.Triple;
+                case "branch":
+                    return NodeType.Branch;
+                default:
+                    UNREACHABLE("StringToType");
+                    return new();
+            }
+        }
+        static Node tokenize(string src, out int currindex)
+        {
+            currindex = 0;
+            StringBuilder buffer = new();
+            while (peek(src, ref currindex).HasValue)
+            {
+                char c = peek(src, ref currindex).Value;
+                while (peek(src, ref currindex).HasValue && (char.IsAsciiLetterOrDigit(peek(src, ref currindex).Value) || peek(src, ref currindex).Value == '.' || peek(src, ref currindex).Value == '-'))
+                {
+                    buffer.Append(consume(src, ref currindex));
+                }
+                string token = buffer.ToString().ToLower();
+                //Number, random,
+                if (float.TryParse(token, out float number))
+                {
+                    return NodeNumber(number);
+                }
+                //X, Y, T, Boolean
+                //SQRT,
+                //ADD, MUL, SUB, GT, GTE, MOD, DIV,
+                //Triple,
+                //If,
+                //Branch,
+                NodeType type = StringToType(token);
+                switch (type)
+                {
+                    case NodeType.X:
+                        return NodeX();
+                    case NodeType.Y:
+                        return NodeY();
+                    case NodeType.T:
+                        return NodeT();
+                    case NodeType.Boolean:
+                        return NodeBoolean(token == "true");
+                    case NodeType.SQRT:
+                        tryconsumeerr('(', src, ref currindex);
+                        Node expr = tokenize(src[currindex..], out int step);
+                        currindex += step;
+                        tryconsumeerr(')', src, ref currindex);
+                        Node unary = NodeUnary(expr, type);
+                        return unary;
+                    case NodeType.ADD:
+                    case NodeType.MUL:
+                    case NodeType.SUB:
+                    case NodeType.GT:
+                    case NodeType.GTE:
+                    case NodeType.MOD:
+                    case NodeType.DIV:
+                        tryconsumeerr('(', src, ref currindex);
+                        Node lhs = tokenize(src[currindex..], out int lhsstep);
+                        currindex += lhsstep;
+                        tryconsumeerr(',', src, ref currindex);
+                        Node rhs = tokenize(src[currindex..], out int rhsstep);
+                        currindex += rhsstep;
+                        tryconsumeerr(')', src, ref currindex);
+                        Node binary = NodeBinary(lhs, rhs, type);
+                        return binary;
+                    case NodeType.Triple:
+                    case NodeType.If:
+                        tryconsumeerr('(', src, ref currindex);
+                        Node first = tokenize(src[currindex..], out int firststep);
+                        currindex += firststep;
+                        tryconsumeerr(',', src, ref currindex);
+                        Node second = tokenize(src[currindex..], out int secondstep);
+                        currindex += secondstep;
+                        tryconsumeerr(',', src, ref currindex);
+                        Node third = tokenize(src[currindex..], out int thirdstep);
+                        currindex += thirdstep;
+                        tryconsumeerr(')', src, ref currindex);
+                        Node ternary = NodeTernary(first, second, third, type);
+                        return ternary;
+                    case NodeType.Branch:
+                        throw new NotImplementedException();
+                    case NodeType.Number:
+                    case NodeType.random:
+                    default:
+                        UNREACHABLE("tokenize");
+                        return new();
+                }
+            }
+            UNREACHABLE("tokenize");
+            return new();
+        }
+#pragma warning restore CS8629
+        static Node NodeLoad(string filepath)
+        {
+            string src = File.ReadAllText(filepath);
+            return tokenize(src, out int currindex);
         }
         static int Main(string[] args)
         {
-            //foo();
-            //return 0;
             if (args.Length <= 0)
             {
                 Usage();
                 Environment.Exit(0);
             }
-
             string mode = ShifArgs(ref args, "UNREACHABLE");
 
             if (mode.Equals("-h", StringComparison.CurrentCultureIgnoreCase)) { Usage(); Environment.Exit(0); }
@@ -687,12 +914,11 @@ namespace random_art
             else
             {
                 Usage();
-                Environment.Exit(0);
             }
             // TODO:
             //- You need a way to save and load the random function 
             //	- in a format so you can read it later and reuse it in the program
-            //	- or same way of grammar handling
+            //	- and same way of grammar handling
             //- You need a way to save and load the grammar
             //  (see if you can modify the code to add the grammar it self and then run it, after that go for the trivial approaches)
             //- A random grammar generator
