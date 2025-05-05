@@ -1,20 +1,8 @@
-﻿using System.Diagnostics;
-using System.Numerics;
+﻿using System.Numerics;
 using System.Text;
 using Raylib_cs;
 using Color = Raylib_cs.Color;
-using System;
-using System.Xml.Xsl;
-using System.Runtime.CompilerServices;
-using static System.Net.Mime.MediaTypeNames;
-using System.Reflection;
 using Image = Raylib_cs.Image;
-using static System.Runtime.InteropServices.JavaScript.JSType;
-using System.Text.RegularExpressions;
-using static System.Runtime.CompilerServices.RuntimeHelpers;
-using System.Security.Cryptography;
-using System.Reflection.Metadata;
-using System.ComponentModel;
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable RETURN0001
@@ -140,7 +128,6 @@ namespace random_art
         static Node NodeUnary(Node expr, NodeType type) => new() { type = type, unary = new(expr) };
         static Node NodeBinary(Node lhs, Node rhs, NodeType type) => new() { type = type, binary = new(lhs, rhs) };
         static Node NodeTernary(Node first, Node second, Node third, NodeType type) => new() { type = type, ternary = new(first, second, third) };
-
         static void NodePrint(ref Node node)
         {
             Console.Write(NodeToSb(ref node).ToString());
@@ -349,7 +336,7 @@ namespace random_art
         }
         static bool GrammarToImage(Grammar g, int width, int height, string filepath, int depth)
         {
-            (Node f, StringBuilder shader) = GrammarToShader(g, depth);
+            (Node _, StringBuilder shader) = GrammarToShader(g, depth);
             Texture2D DefaultTexture = LoadDefaultTexture();
             Raylib.SetConfigFlags(ConfigFlags.HiddenWindow);
             Raylib.InitWindow(width, height, "");
@@ -374,7 +361,6 @@ namespace random_art
         static bool NodeToImage(Node f, int width, int height, string filepath)
         {
             Texture2D DefaultTexture = LoadDefaultTexture();
-            Grammar grammar = LoadDefaultGrammar();
             Raylib.SetConfigFlags(ConfigFlags.HiddenWindow);
             Raylib.InitWindow(width, height, "");
             Shader s = Raylib.LoadShaderFromMemory(null, NodeToShader(f).ToString());
@@ -404,7 +390,7 @@ namespace random_art
             Log(LogType.NORMAL, $"\t{"-o <file>",-15} : place the output image into <file>\n");
             Log(LogType.NORMAL, $"\t{"-depth <depth>",-15} : specify the depth of the generated function\n\n");
         }
-        static void expr3d()
+        static void Expr3d()
         {
             Raylib.InitWindow(800, 800, "raylib [core] example - 3d camera free");
 
@@ -442,7 +428,7 @@ namespace random_art
         }
         static StringBuilder NodeToSb(ref Node node)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             switch (node.type)
             {
                 case NodeType.Number:
@@ -450,18 +436,18 @@ namespace random_art
                     sb.Append(node.number);
                     break;
                 case NodeType.X:
-                    sb.Append("x");
+                    sb.Append('x');
                     break;
                 case NodeType.Y:
-                    sb.Append("y");
+                    sb.Append('y');
                     break;
                 case NodeType.T:
-                    sb.Append("t");
+                    sb.Append('t');
                     break;
                 case NodeType.SQRT:
                     sb.Append($"{node.type}(");
                     sb.Append(NodeToSb(ref node.unary.expr));
-                    sb.Append(")");
+                    sb.Append(')');
                     break;
                 case NodeType.ADD:
                 case NodeType.SUB:
@@ -472,18 +458,18 @@ namespace random_art
                 case NodeType.DIV:
                     sb.Append($"{node.type}(");
                     sb.Append(NodeToSb(ref node.binary.lhs));
-                    sb.Append(",");
+                    sb.Append(',');
                     sb.Append(NodeToSb(ref node.binary.rhs));
-                    sb.Append(")");
+                    sb.Append(')');
                     break;
                 case NodeType.If:
                     sb.Append($"if(");
                     sb.Append(NodeToSb(ref node.ternary.first));
-                    sb.Append(",");
+                    sb.Append(',');
                     sb.Append(NodeToSb(ref node.ternary.second));
-                    sb.Append(",");
+                    sb.Append(',');
                     sb.Append(NodeToSb(ref node.ternary.third));
-                    sb.Append(")");
+                    sb.Append(')');
                     break;
                 case NodeType.Boolean:
                     sb.Append(node.boolean);
@@ -491,11 +477,11 @@ namespace random_art
                 case NodeType.Triple:
                     sb.Append("triple(");
                     sb.Append(NodeToSb(ref node.ternary.first));
-                    sb.Append(",");
+                    sb.Append(',');
                     sb.Append(NodeToSb(ref node.ternary.second));
-                    sb.Append(",");
+                    sb.Append(',');
                     sb.Append(NodeToSb(ref node.ternary.third));
-                    sb.Append(")");
+                    sb.Append(')');
                     break;
                 case NodeType.Branch:
                     sb.Append($"{node.type}({node.branch})");
@@ -506,7 +492,7 @@ namespace random_art
             }
             return sb;
         }
-        static char? peek(string src, ref int currindex, int offset = 0)
+        static char? Peek(string src, ref int currindex, int offset = 0)
         {
             if (currindex + offset < src.Length)
             {
@@ -514,24 +500,24 @@ namespace random_art
             }
             return null;
         }
-        static char? peek(char type, string src, ref int currindex, int offset = 0)
+        static char? Peek(char type, string src, ref int currindex, int offset = 0)
         {
-            char? token = peek(src, ref currindex, offset);
+            char? token = Peek(src, ref currindex, offset);
             if (token.HasValue && token.Value == type)
             {
                 return token;
             }
             return null;
         }
-        static char consume(string src, ref int currindex)
+        static char Consume(string src, ref int currindex)
         {
             return src.ElementAt(currindex++);
         }
-        static char? tryconsumeerr(char type, string src, ref int currindex)
+        static char? Tryconsumeerr(char type, string src, ref int currindex)
         {
-            if (peek(type, src, ref currindex).HasValue)
+            if (Peek(type, src, ref currindex).HasValue)
             {
-                return consume(src, ref currindex);
+                return Consume(src, ref currindex);
             }
             Log(LogType.ERROR, $"Error Expected {type}\n");
             Environment.Exit(1);
@@ -578,16 +564,18 @@ namespace random_art
             }
         }
 #pragma warning disable CS8629
-        static Node tokenize(string src, out int currindex)
+        static Node Tokenize(string src, out int currindex)
         {
             currindex = 0;
             StringBuilder buffer = new();
-            while (peek(src, ref currindex).HasValue)
+            while (Peek(src, ref currindex).HasValue)
             {
-                char c = peek(src, ref currindex).Value;
-                while (peek(src, ref currindex).HasValue && (char.IsAsciiLetterOrDigit(peek(src, ref currindex).Value) || peek(src, ref currindex).Value == '.' || peek(src, ref currindex).Value == '-'))
+                while (Peek(src, ref currindex).HasValue && (char.IsAsciiLetterOrDigit(Peek(src, ref currindex).Value) || Peek(src, ref currindex).Value == '.' || Peek(src, ref currindex).Value == '-' || char.IsWhiteSpace(Peek(src, ref currindex).Value)))
                 {
-                    buffer.Append(consume(src, ref currindex));
+                    if (char.IsWhiteSpace(Peek(src, ref currindex).Value))
+                        Consume(src, ref currindex);
+                    else
+                        buffer.Append(Consume(src, ref currindex));
                 }
                 string token = buffer.ToString().ToLower();
                 //Number, random,
@@ -613,10 +601,10 @@ namespace random_art
                     case NodeType.Boolean:
                         return NodeBoolean(token == "true");
                     case NodeType.SQRT:
-                        tryconsumeerr('(', src, ref currindex);
-                        Node expr = tokenize(src[currindex..], out int step);
+                        Tryconsumeerr('(', src, ref currindex);
+                        Node expr = Tokenize(src[currindex..], out int step);
                         currindex += step;
-                        tryconsumeerr(')', src, ref currindex);
+                        Tryconsumeerr(')', src, ref currindex);
                         Node unary = NodeUnary(expr, type);
                         return unary;
                     case NodeType.ADD:
@@ -626,27 +614,27 @@ namespace random_art
                     case NodeType.GTE:
                     case NodeType.MOD:
                     case NodeType.DIV:
-                        tryconsumeerr('(', src, ref currindex);
-                        Node lhs = tokenize(src[currindex..], out int lhsstep);
+                        Tryconsumeerr('(', src, ref currindex);
+                        Node lhs = Tokenize(src[currindex..], out int lhsstep);
                         currindex += lhsstep;
-                        tryconsumeerr(',', src, ref currindex);
-                        Node rhs = tokenize(src[currindex..], out int rhsstep);
+                        Tryconsumeerr(',', src, ref currindex);
+                        Node rhs = Tokenize(src[currindex..], out int rhsstep);
                         currindex += rhsstep;
-                        tryconsumeerr(')', src, ref currindex);
+                        Tryconsumeerr(')', src, ref currindex);
                         Node binary = NodeBinary(lhs, rhs, type);
                         return binary;
                     case NodeType.Triple:
                     case NodeType.If:
-                        tryconsumeerr('(', src, ref currindex);
-                        Node first = tokenize(src[currindex..], out int firststep);
+                        Tryconsumeerr('(', src, ref currindex);
+                        Node first = Tokenize(src[currindex..], out int firststep);
                         currindex += firststep;
-                        tryconsumeerr(',', src, ref currindex);
-                        Node second = tokenize(src[currindex..], out int secondstep);
+                        Tryconsumeerr(',', src, ref currindex);
+                        Node second = Tokenize(src[currindex..], out int secondstep);
                         currindex += secondstep;
-                        tryconsumeerr(',', src, ref currindex);
-                        Node third = tokenize(src[currindex..], out int thirdstep);
+                        Tryconsumeerr(',', src, ref currindex);
+                        Node third = Tokenize(src[currindex..], out int thirdstep);
                         currindex += thirdstep;
-                        tryconsumeerr(')', src, ref currindex);
+                        Tryconsumeerr(')', src, ref currindex);
                         Node ternary = NodeTernary(first, second, third, type);
                         return ternary;
                     case NodeType.Branch:
@@ -688,7 +676,7 @@ namespace random_art
                 ERROR_MESSAGE = e.Message;
                 return null;
             }
-            return tokenize(src, out int _);
+            return Tokenize(src, out int _);
         }
         static string ERROR_MESSAGE = "";
         static int Main(string[] args)
@@ -753,10 +741,11 @@ namespace random_art
                 Usage();
             }
             // TODO:
-            //- handle the branch in saving/loading the grammar 
-            //- add more flags (width, height, generate videos using ffmpeg pipeline)
             //- naming
-            //	- save and load grammar
+            //- add more flags (width, height, generate videos using ffmpeg pipeline)
+
+            //- save and load grammar
+            //- handle the branch in saving/loading the grammar 
             //- A random grammar generator
             //	- you need rules for generation
             //- we may have to redefine the binary operators (add, mul, ...) to take three inputs instead of just (lhs, rhs), and to expand it to a variadic for that matter
@@ -764,3 +753,12 @@ namespace random_art
         }
     }
 }
+/*
+a grammar `g` is composed of multiple branches each branch `b` is composed of multiple nodes each node `n` has a probability `p`
+b1 p1 `n1` p2 `n2`, ..., pk `nk`;
+b2 p1 `n1` p2 `n2`, ..., pk `nk`;
+.
+.
+.
+bk p1 `n1` p2 `n2`, ..., pk `nk`;
+*/
