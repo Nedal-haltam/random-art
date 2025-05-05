@@ -1,10 +1,10 @@
 ﻿using System.Numerics;
 using System.Text;
-using System.Text.RegularExpressions;
 using Raylib_cs;
 using Color = Raylib_cs.Color;
 using Image = Raylib_cs.Image;
-using System.Text.RegularExpressions;
+using System.Xml.Serialization;
+using System.Diagnostics.CodeAnalysis;
 
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
@@ -21,20 +21,38 @@ namespace random_art
         If,
         Branch,
     }
-    public sealed class NodeUnary(Node expr)
+    public sealed class NodeUnary
     {
-        public Node expr = expr;
+        public NodeUnary() { }
+        public NodeUnary(Node expr)
+        {
+            this.expr = expr;
+        }
+        public Node expr;
     }
-    public sealed class NodeBinary(Node lhs, Node rhs)
+    public sealed class NodeBinary
     {
-        public Node lhs = lhs;
-        public Node rhs = rhs;
+        public NodeBinary(){}
+        public NodeBinary(Node lhs, Node rhs)
+        {
+            this.lhs = lhs;
+            this.rhs = rhs;
+        }
+        public Node lhs;
+        public Node rhs;
     }
-    public sealed class NodeTernary(Node first, Node second, Node third)
+    public sealed class NodeTernary
     {
-        public Node first = first;
-        public Node second = second;
-        public Node third = third;
+        public NodeTernary(){}
+        public NodeTernary(Node first, Node second, Node third)
+        {
+            this.first = first;
+            this.second = second;
+            this.third = third;
+        }
+        public Node first;
+        public Node second;
+        public Node third;
     }
     public struct Node
     {
@@ -273,13 +291,16 @@ namespace random_art
             return (f, NodeToShader(f));
         }
         public static Texture2D LoadDefaultTexture() => new() { Id = 1, Width = 1, Height = 1, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
+
+        [RequiresUnreferencedCode("Calls random_art.Program.LoadOject<T>(String)")]
         static void Gui(int width, int height, int depth)
         {
             Raylib.SetConfigFlags(ConfigFlags.AlwaysRunWindow | ConfigFlags.ResizableWindow);
             Raylib.InitWindow(width, height, "Random Art");
             Raylib.SetTargetFPS(60);
             Texture2D DefaultTexture = LoadDefaultTexture();
-            Grammar grammar = LoadDefaultGrammar();
+            //Grammar grammar = LoadDefaultGrammar();
+            Grammar grammar = LoadOject<Grammar>("grammar");
             float time = 0;
             (Node node, StringBuilder fs) = GrammarToShader(grammar, depth);
             Shader s = Raylib.LoadShaderFromMemory(null, fs.ToString());
@@ -695,9 +716,44 @@ namespace random_art
             return TokenizeNode(src, out int _);
         }
         static string ERROR_MESSAGE = "";
+
+        [RequiresUnreferencedCode("Calls System.Xml.Serialization.XmlSerializer.XmlSerializer(Type)")]
+        public static void SaveObject<T>(string filePath, T objectToWrite, bool append = false) where T : new()
+        {
+            TextWriter? writer = null;
+            try
+            {
+                var serializer = new XmlSerializer(typeof(T));
+                writer = new StreamWriter(filePath, append);
+                serializer.Serialize(writer, objectToWrite);
+            }
+            finally
+            {
+                writer?.Close();
+            }
+        }
+        [RequiresUnreferencedCode("Calls System.Xml.Serialization.XmlSerializer.XmlSerializer(Type)")]
+        public static T LoadOject<T>(string filePath) where T : new()
+        {
+            TextReader? reader = null;
+            try
+            {
+                var serializer = new XmlSerializer(typeof(T));
+                reader = new StreamReader(filePath);
+                object? o = serializer.Deserialize(reader);
+                if (o == null)
+                    return new();
+                return (T)o;
+            }
+            finally
+            {
+                reader?.Close();
+            }
+        }
+
+        [RequiresUnreferencedCode("Calls random_art.Program.SaveObject<T>(String, T, Boolean)")]
         static int Main(string[] args)
         {
-            TokenizeToGrammar(File.ReadAllText("grammar.txt"));
             if (args.Length <= 0)
             {
                 Usage();
