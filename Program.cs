@@ -364,7 +364,6 @@ namespace random_art
             Raylib.SetConfigFlags(ConfigFlags.HiddenWindow);
             Raylib.InitWindow(Width, Height, "");
             Shader s = Raylib.LoadShaderFromMemory(null, shader.ToString());
-            Raylib.BeginDrawing();
             Raylib.ClearBackground(Color.Gray);
             Raylib.BeginShaderMode(s);
             Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, Width, Height), new(0, 0), 0, Color.White);
@@ -375,7 +374,6 @@ namespace random_art
                 ERROR_MESSAGE = $"Failed to export image to path: {FilePath}\n";
                 return false;
             }
-            Raylib.EndDrawing();
             Raylib.UnloadShader(s);
             Raylib.UnloadImage(image);
             Raylib.CloseWindow();
