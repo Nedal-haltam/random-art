@@ -1,8 +1,11 @@
 ﻿using System.Numerics;
 using System.Text;
+using System.Text.RegularExpressions;
 using Raylib_cs;
 using Color = Raylib_cs.Color;
 using Image = Raylib_cs.Image;
+using System.Text.RegularExpressions;
+
 
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable RETURN0001
@@ -556,16 +559,19 @@ namespace random_art
                     return NodeType.If;
                 case "triple":
                     return NodeType.Triple;
+                case "random":
+                    return NodeType.random;
                 case "branch":
-                    return NodeType.Branch;
-                default:
                     UNREACHABLE("StringToType");
                     return new();
+                default:
+                    return NodeType.Branch;
             }
         }
 #pragma warning disable CS8629
-        static Node Tokenize(string src, out int currindex)
+        static Node TokenizeNode(string src, out int currindex)
         {
+            // we may not have to take a substring whenever we want to tokenize, we can make it global and pass only the index, and that would be suffecient enough
             currindex = 0;
             StringBuilder buffer = new();
             while (Peek(src, ref currindex).HasValue)
@@ -602,8 +608,8 @@ namespace random_art
                         return NodeBoolean(token == "true");
                     case NodeType.SQRT:
                         Tryconsumeerr('(', src, ref currindex);
-                        Node expr = Tokenize(src[currindex..], out int step);
-                        currindex += step;
+                        Node expr = TokenizeNode(src[currindex..], out int exprstep);
+                        currindex += exprstep;
                         Tryconsumeerr(')', src, ref currindex);
                         Node unary = NodeUnary(expr, type);
                         return unary;
@@ -615,10 +621,10 @@ namespace random_art
                     case NodeType.MOD:
                     case NodeType.DIV:
                         Tryconsumeerr('(', src, ref currindex);
-                        Node lhs = Tokenize(src[currindex..], out int lhsstep);
+                        Node lhs = TokenizeNode(src[currindex..], out int lhsstep);
                         currindex += lhsstep;
                         Tryconsumeerr(',', src, ref currindex);
-                        Node rhs = Tokenize(src[currindex..], out int rhsstep);
+                        Node rhs = TokenizeNode(src[currindex..], out int rhsstep);
                         currindex += rhsstep;
                         Tryconsumeerr(')', src, ref currindex);
                         Node binary = NodeBinary(lhs, rhs, type);
@@ -626,28 +632,38 @@ namespace random_art
                     case NodeType.Triple:
                     case NodeType.If:
                         Tryconsumeerr('(', src, ref currindex);
-                        Node first = Tokenize(src[currindex..], out int firststep);
+                        Node first = TokenizeNode(src[currindex..], out int firststep);
                         currindex += firststep;
                         Tryconsumeerr(',', src, ref currindex);
-                        Node second = Tokenize(src[currindex..], out int secondstep);
+                        Node second = TokenizeNode(src[currindex..], out int secondstep);
                         currindex += secondstep;
                         Tryconsumeerr(',', src, ref currindex);
-                        Node third = Tokenize(src[currindex..], out int thirdstep);
+                        Node third = TokenizeNode(src[currindex..], out int thirdstep);
                         currindex += thirdstep;
                         Tryconsumeerr(')', src, ref currindex);
                         Node ternary = NodeTernary(first, second, third, type);
                         return ternary;
                     case NodeType.Branch:
-                        throw new NotImplementedException();
+                        UNREACHABLE("TokenizeNode");
+                        return new();
                     case NodeType.Number:
                     case NodeType.random:
                     default:
-                        UNREACHABLE("tokenize");
+                        UNREACHABLE("TokenizeNode");
                         return new();
                 }
             }
-            UNREACHABLE("tokenize");
+            UNREACHABLE("TokenizeNode");
             return new();
+        }
+        static (string, Branch) TokenizeBranch(string src, Dictionary<string, int> BranchTable)
+        {
+            throw new NotImplementedException();
+        }
+        static Grammar TokenizeToGrammar(string src)
+        {
+            //a grammar `g` is composed of multiple branches each branch `b` is composed of multiple nodes each node `n` has a priority(not exactly a probability) `p`
+            throw new NotImplementedException();
         }
 #pragma warning restore CS8629
         static bool NodeSave(string filepath, Node node)
@@ -676,11 +692,12 @@ namespace random_art
                 ERROR_MESSAGE = e.Message;
                 return null;
             }
-            return Tokenize(src, out int _);
+            return TokenizeNode(src, out int _);
         }
         static string ERROR_MESSAGE = "";
         static int Main(string[] args)
         {
+            TokenizeToGrammar(File.ReadAllText("grammar.txt"));
             if (args.Length <= 0)
             {
                 Usage();
@@ -753,12 +770,3 @@ namespace random_art
         }
     }
 }
-/*
-a grammar `g` is composed of multiple branches each branch `b` is composed of multiple nodes each node `n` has a probability `p`
-b1 p1 `n1` p2 `n2`, ..., pk `nk`;
-b2 p1 `n1` p2 `n2`, ..., pk `nk`;
-.
-.
-.
-bk p1 `n1` p2 `n2`, ..., pk `nk`;
-*/
