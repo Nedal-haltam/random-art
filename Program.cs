@@ -181,9 +181,9 @@ namespace random_art
                 terminalbranchindex = [1],
             };
         }
-        static Node GrammarToNode(Grammar grammar, Node node, int depth)
+        static Node GrammarToNode(Grammar grammar, Node node, int Depth)
         {
-            if (depth <= 0)
+            if (Depth <= 0)
             {
                 Branch b = grammar.branches[grammar.terminalbranchindex[random.Next(grammar.terminalbranchindex.Count)]];
                 return BranchToNode(grammar, b.nodes[random.Next(b.nodes.Count)].node, 0);
@@ -191,15 +191,15 @@ namespace random_art
             else
             {
                 Branch b = grammar.branches[node.branch];
-                return BranchToNode(grammar, b.nodes[random.Next(b.nodes.Count)].node, depth - 1);
+                return BranchToNode(grammar, b.nodes[random.Next(b.nodes.Count)].node, Depth - 1);
             }
         }
-        static Node BranchToNode(Grammar grammar, Node node, int depth)
+        static Node BranchToNode(Grammar grammar, Node node, int Depth)
         {
             switch (node.type)
             {
                 case NodeType.Branch:
-                    return GrammarToNode(grammar, node, depth - 1);
+                    return GrammarToNode(grammar, node, Depth - 1);
                 case NodeType.random:
                     return NodeNumber(node.number);
                 case NodeType.Number:
@@ -209,7 +209,7 @@ namespace random_art
                 case NodeType.T:
                     return node;
                 case NodeType.SQRT:
-                    return NodeUnary(BranchToNode(grammar, node.unary.expr, depth), node.type);
+                    return NodeUnary(BranchToNode(grammar, node.unary.expr, Depth), node.type);
                 case NodeType.ADD:
                 case NodeType.MUL:
                 case NodeType.SUB:
@@ -217,10 +217,10 @@ namespace random_art
                 case NodeType.GTE:
                 case NodeType.MOD:
                 case NodeType.DIV:
-                    return NodeBinary(BranchToNode(grammar, node.binary.lhs, depth), BranchToNode(grammar, node.binary.rhs, depth), node.type);
+                    return NodeBinary(BranchToNode(grammar, node.binary.lhs, Depth), BranchToNode(grammar, node.binary.rhs, Depth), node.type);
                 case NodeType.Triple:
                 case NodeType.If:
-                    return NodeTernary(BranchToNode(grammar, node.ternary.first, depth), BranchToNode(grammar, node.ternary.second, depth), BranchToNode(grammar, node.ternary.third, depth), node.type);
+                    return NodeTernary(BranchToNode(grammar, node.ternary.first, Depth), BranchToNode(grammar, node.ternary.second, Depth), BranchToNode(grammar, node.ternary.third, Depth), node.type);
                 default:
                     UNREACHABLE("BranchToNode");
                     return new();
@@ -269,111 +269,110 @@ namespace random_art
         }
         static StringBuilder NodeToShader(Node f)
         {
-            StringBuilder fs = new();
-            string func = NodeToShaderFunction(f).ToString();
-            fs.Append("#version 330\n");
-            fs.Append("in vec2 fragTexCoord;\n");
-            fs.Append("out vec4 finalColor;\n");
-            fs.Append("uniform float csTIME;\n");
-            fs.Append("void main()\n");
-            fs.Append("{\n");
-            fs.Append("float x = 2.0 * fragTexCoord.x - 1.0;\n");
-            fs.Append("float y = 2.0 * fragTexCoord.y - 1.0;\n");
-            fs.Append("float t = sin(csTIME);\n");
-            fs.Append($"   vec3 tempcolor = {func};\n");
-            fs.Append("    finalColor = vec4((tempcolor + 1) / 2.0, 1);\n");
-            fs.Append('}');
-            return fs;
+            StringBuilder FragmentShader = new();
+            string ShaderFunction = NodeToShaderFunction(f).ToString();
+            FragmentShader.Append("#version 330\n");
+            FragmentShader.Append("in vec2 fragTexCoord;\n");
+            FragmentShader.Append("out vec4 finalColor;\n");
+            FragmentShader.Append("uniform float csTIME;\n");
+            FragmentShader.Append("void main()\n");
+            FragmentShader.Append("{\n");
+            FragmentShader.Append("float x = 2.0 * fragTexCoord.x - 1.0;\n");
+            FragmentShader.Append("float y = 2.0 * fragTexCoord.y - 1.0;\n");
+            FragmentShader.Append("float t = sin(csTIME);\n");
+            FragmentShader.Append($"   vec3 tempcolor = {ShaderFunction};\n");
+            FragmentShader.Append("    finalColor = vec4((tempcolor + 1) / 2.0, 1);\n");
+            FragmentShader.Append('}');
+            return FragmentShader;
         }
-        static (Node, StringBuilder) GrammarToShader(Grammar grammar, int depth)
+        static (Node, StringBuilder) GrammarToShader(Grammar g, int Depth)
         {
-            Node f = GrammarToNode(grammar, NodeBranch(grammar.startbranchindex), depth);
-            return (f, NodeToShader(f));
+            Node n = GrammarToNode(g, NodeBranch(g.startbranchindex), Depth);
+            return (n, NodeToShader(n));
         }
         public static Texture2D LoadDefaultTexture() => new() { Id = 1, Width = 1, Height = 1, Mipmaps = 1, Format = PixelFormat.UncompressedR8G8B8A8 };
 
         [RequiresUnreferencedCode("Calls random_art.Program.LoadOject<T>(String)")]
-        static void Gui(int width, int height, int depth)
+        static void Gui(int Width, int Height, int Depth)
         {
             Raylib.SetConfigFlags(ConfigFlags.AlwaysRunWindow | ConfigFlags.ResizableWindow);
-            Raylib.InitWindow(width, height, "Random Art");
+            Raylib.InitWindow(Width, Height, "Random Art");
             Raylib.SetTargetFPS(60);
             Texture2D DefaultTexture = LoadDefaultTexture();
-            //Grammar grammar = LoadDefaultGrammar();
-            Grammar grammar = LoadOject<Grammar>("grammar");
-            float time = 0;
-            (Node node, StringBuilder fs) = GrammarToShader(grammar, depth);
-            Shader s = Raylib.LoadShaderFromMemory(null, fs.ToString());
+            Grammar g = LoadDefaultGrammar();
+            float csTime = 0;
+            (Node node, StringBuilder FragmentShader) = GrammarToShader(g, Depth);
+            Shader Shader = Raylib.LoadShaderFromMemory(null, FragmentShader.ToString());
             Node currentnode = node;
             while (!Raylib.WindowShouldClose())
             {
-                width = Raylib.GetScreenWidth();
-                height = Raylib.GetScreenHeight();
-                time += Raylib.GetFrameTime();
+                Width = Raylib.GetScreenWidth();
+                Height = Raylib.GetScreenHeight();
+                csTime += Raylib.GetFrameTime();
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Color.Gray);
-                Raylib.SetShaderValue(s, Raylib.GetShaderLocation(s, "csTIME"), time, ShaderUniformDataType.Float);
+                Raylib.SetShaderValue(Shader, Raylib.GetShaderLocation(Shader, "csTIME"), csTime, ShaderUniformDataType.Float);
                 if (Raylib.IsKeyPressed(KeyboardKey.R))
                 {
-                    time = 0;
-                    (Node tempnode, StringBuilder tempfs) = GrammarToShader(grammar, depth);
+                    csTime = 0;
+                    (Node tempnode, StringBuilder tempFragmentShader) = GrammarToShader(g, Depth);
                     currentnode = tempnode;
-                    Raylib.UnloadShader(s);
-                    s = Raylib.LoadShaderFromMemory(null, tempfs.ToString());
+                    Raylib.UnloadShader(Shader);
+                    Shader = Raylib.LoadShaderFromMemory(null, tempFragmentShader.ToString());
                 }
                 if (Raylib.IsKeyPressed(KeyboardKey.S))
                 {
-                    string filepath = "Node.txt";
-                    if (!NodeSave(filepath, currentnode))
+                    string FilePath = "Node.txt";
+                    if (!NodeSave(FilePath, currentnode))
                         Log(LogType.ERROR, $"could not save node because of : {ERROR_MESSAGE}\n");
                     else
-                        Log(LogType.INFO, $"node saved successfully into : {filepath}\n");
+                        Log(LogType.INFO, $"node saved successfully into : {FilePath}\n");
                 }
                 if (Raylib.IsKeyPressed(KeyboardKey.L))
                 {
-                    time = 0;
-                    string filepath = "Node.txt";
-                    Node? tempnode = NodeLoad(filepath);
+                    csTime = 0;
+                    string FilePath = "Node.txt";
+                    Node? tempnode = NodeLoad(FilePath);
                     if (!tempnode.HasValue)
                     {
                         Log(LogType.ERROR, $"could not load node because of : {ERROR_MESSAGE}\n");
                     }
                     else
                     {
-                        Log(LogType.INFO, $"node loaded successfully from : {filepath}\n");
+                        Log(LogType.INFO, $"node loaded successfully from : {FilePath}\n");
                         Log(LogType.NORMAL, "compiling node into a fragment shader\n");
-                        StringBuilder tempfs = NodeToShader(tempnode.Value);
+                        StringBuilder tempFragmentShader = NodeToShader(tempnode.Value);
                         currentnode = tempnode.Value;
-                        Raylib.UnloadShader(s);
-                        s = Raylib.LoadShaderFromMemory(null, tempfs.ToString());
+                        Raylib.UnloadShader(Shader);
+                        Shader = Raylib.LoadShaderFromMemory(null, tempFragmentShader.ToString());
                     }
                 }
-                Raylib.BeginShaderMode(s);
-                Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, width, height), new(0, 0), 0, Color.White);
+                Raylib.BeginShaderMode(Shader);
+                Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, Width, Height), new(0, 0), 0, Color.White);
                 Raylib.EndShaderMode();
 
                 Raylib.DrawFPS(0, 0);
                 Raylib.EndDrawing();
             }
-            Raylib.UnloadShader(s);
+            Raylib.UnloadShader(Shader);
             Raylib.CloseWindow();
         }
-        static bool GrammarToImage(Grammar g, int width, int height, string filepath, int depth)
+        static bool GrammarToImage(Grammar g, int Width, int Height, string FilePath, int Depth)
         {
-            (Node _, StringBuilder shader) = GrammarToShader(g, depth);
+            (Node _, StringBuilder shader) = GrammarToShader(g, Depth);
             Texture2D DefaultTexture = LoadDefaultTexture();
             Raylib.SetConfigFlags(ConfigFlags.HiddenWindow);
-            Raylib.InitWindow(width, height, "");
+            Raylib.InitWindow(Width, Height, "");
             Shader s = Raylib.LoadShaderFromMemory(null, shader.ToString());
             Raylib.BeginDrawing();
             Raylib.ClearBackground(Color.Gray);
             Raylib.BeginShaderMode(s);
-            Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, width, height), new(0, 0), 0, Color.White);
+            Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, Width, Height), new(0, 0), 0, Color.White);
             Raylib.EndShaderMode();
             Image image = Raylib.LoadImageFromScreen();
-            if (!Raylib.ExportImage(image, filepath))
+            if (!Raylib.ExportImage(image, FilePath))
             {
-                ERROR_MESSAGE = $"Failed to export image to path: {filepath}\n";
+                ERROR_MESSAGE = $"Failed to export image to path: {FilePath}\n";
                 return false;
             }
             Raylib.EndDrawing();
@@ -382,21 +381,21 @@ namespace random_art
             Raylib.CloseWindow();
             return true;
         }
-        static bool NodeToImage(Node f, int width, int height, string filepath)
+        static bool NodeToImage(Node node, int Width, int Height, string FilePath)
         {
             Texture2D DefaultTexture = LoadDefaultTexture();
             Raylib.SetConfigFlags(ConfigFlags.HiddenWindow);
-            Raylib.InitWindow(width, height, "");
-            Shader s = Raylib.LoadShaderFromMemory(null, NodeToShader(f).ToString());
+            Raylib.InitWindow(Width, Height, "");
+            Shader s = Raylib.LoadShaderFromMemory(null, NodeToShader(node).ToString());
             Raylib.BeginDrawing();
             Raylib.ClearBackground(Color.Gray);
             Raylib.BeginShaderMode(s);
-            Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, width, height), new(0, 0), 0, Color.White);
+            Raylib.DrawTexturePro(DefaultTexture, new(0, 0, DefaultTexture.Width, DefaultTexture.Height), new(0, 0, Width, Height), new(0, 0), 0, Color.White);
             Raylib.EndShaderMode();
             Image image = Raylib.LoadImageFromScreen();
-            if (!Raylib.ExportImage(image, filepath))
+            if (!Raylib.ExportImage(image, FilePath))
             {
-                ERROR_MESSAGE = $"Failed to export image to path: {filepath}\n";
+                ERROR_MESSAGE = $"Failed to export image to path: {FilePath}\n";
                 return false;
             }
             Raylib.EndDrawing();
@@ -516,32 +515,32 @@ namespace random_art
             }
             return sb;
         }
-        static char? Peek(string src, ref int currindex, int offset = 0)
+        static char? Peek(string src, ref int index, int offset = 0)
         {
-            if (currindex + offset < src.Length)
+            if (index+ offset < src.Length)
             {
-                return src[currindex + offset];
+                return src[index+ offset];
             }
             return null;
         }
-        static char? Peek(char type, string src, ref int currindex, int offset = 0)
+        static char? Peek(char type, string src, ref int index, int offset = 0)
         {
-            char? token = Peek(src, ref currindex, offset);
+            char? token = Peek(src, ref index, offset);
             if (token.HasValue && token.Value == type)
             {
                 return token;
             }
             return null;
         }
-        static char Consume(string src, ref int currindex)
+        static char Consume(string src, ref int index)
         {
-            return src.ElementAt(currindex++);
+            return src.ElementAt(index++);
         }
-        static char? Tryconsumeerr(char type, string src, ref int currindex)
+        static char? Tryconsumeerr(char type, string src, ref int index)
         {
-            if (Peek(type, src, ref currindex).HasValue)
+            if (Peek(type, src, ref index).HasValue)
             {
-                return Consume(src, ref currindex);
+                return Consume(src, ref index);
             }
             Log(LogType.ERROR, $"Error Expected {type}\n");
             Environment.Exit(1);
@@ -590,21 +589,21 @@ namespace random_art
             }
         }
 #pragma warning disable CS8629
-        static Node TokenizeNode(string src, out int currindex)
+        static Node TokenizeNode(string src, out int index)
         {
             // we may not have to take a substring whenever we want to tokenize, we can make it global and pass only the index, and that would be suffecient enough
-            currindex = 0;
-            StringBuilder buffer = new();
-            while (Peek(src, ref currindex).HasValue)
+            index= 0;
+            StringBuilder Buffer = new();
+            while (Peek(src, ref index).HasValue)
             {
-                while (Peek(src, ref currindex).HasValue && (char.IsAsciiLetterOrDigit(Peek(src, ref currindex).Value) || Peek(src, ref currindex).Value == '.' || Peek(src, ref currindex).Value == '-' || char.IsWhiteSpace(Peek(src, ref currindex).Value)))
+                while (Peek(src, ref index).HasValue && (char.IsAsciiLetterOrDigit(Peek(src, ref index).Value) || Peek(src, ref index).Value == '.' || Peek(src, ref index).Value == '-' || char.IsWhiteSpace(Peek(src, ref index).Value)))
                 {
-                    if (char.IsWhiteSpace(Peek(src, ref currindex).Value))
-                        Consume(src, ref currindex);
+                    if (char.IsWhiteSpace(Peek(src, ref index).Value))
+                        Consume(src, ref index);
                     else
-                        buffer.Append(Consume(src, ref currindex));
+                        Buffer.Append(Consume(src, ref index));
                 }
-                string token = buffer.ToString().ToLower();
+                string token = Buffer.ToString().ToLower();
                 //Number, random,
                 if (float.TryParse(token, out float number))
                 {
@@ -628,10 +627,10 @@ namespace random_art
                     case NodeType.Boolean:
                         return NodeBoolean(token == "true");
                     case NodeType.SQRT:
-                        Tryconsumeerr('(', src, ref currindex);
-                        Node expr = TokenizeNode(src[currindex..], out int exprstep);
-                        currindex += exprstep;
-                        Tryconsumeerr(')', src, ref currindex);
+                        Tryconsumeerr('(', src, ref index);
+                        Node expr = TokenizeNode(src[index..], out int exprstep);
+                        index+= exprstep;
+                        Tryconsumeerr(')', src, ref index);
                         Node unary = NodeUnary(expr, type);
                         return unary;
                     case NodeType.ADD:
@@ -641,27 +640,27 @@ namespace random_art
                     case NodeType.GTE:
                     case NodeType.MOD:
                     case NodeType.DIV:
-                        Tryconsumeerr('(', src, ref currindex);
-                        Node lhs = TokenizeNode(src[currindex..], out int lhsstep);
-                        currindex += lhsstep;
-                        Tryconsumeerr(',', src, ref currindex);
-                        Node rhs = TokenizeNode(src[currindex..], out int rhsstep);
-                        currindex += rhsstep;
-                        Tryconsumeerr(')', src, ref currindex);
+                        Tryconsumeerr('(', src, ref index);
+                        Node lhs = TokenizeNode(src[index..], out int lhsstep);
+                        index+= lhsstep;
+                        Tryconsumeerr(',', src, ref index);
+                        Node rhs = TokenizeNode(src[index..], out int rhsstep);
+                        index+= rhsstep;
+                        Tryconsumeerr(')', src, ref index);
                         Node binary = NodeBinary(lhs, rhs, type);
                         return binary;
                     case NodeType.Triple:
                     case NodeType.If:
-                        Tryconsumeerr('(', src, ref currindex);
-                        Node first = TokenizeNode(src[currindex..], out int firststep);
-                        currindex += firststep;
-                        Tryconsumeerr(',', src, ref currindex);
-                        Node second = TokenizeNode(src[currindex..], out int secondstep);
-                        currindex += secondstep;
-                        Tryconsumeerr(',', src, ref currindex);
-                        Node third = TokenizeNode(src[currindex..], out int thirdstep);
-                        currindex += thirdstep;
-                        Tryconsumeerr(')', src, ref currindex);
+                        Tryconsumeerr('(', src, ref index);
+                        Node first = TokenizeNode(src[index..], out int firststep);
+                        index+= firststep;
+                        Tryconsumeerr(',', src, ref index);
+                        Node second = TokenizeNode(src[index..], out int secondstep);
+                        index+= secondstep;
+                        Tryconsumeerr(',', src, ref index);
+                        Node third = TokenizeNode(src[index..], out int thirdstep);
+                        index+= thirdstep;
+                        Tryconsumeerr(')', src, ref index);
                         Node ternary = NodeTernary(first, second, third, type);
                         return ternary;
                     case NodeType.Branch:
@@ -677,22 +676,13 @@ namespace random_art
             UNREACHABLE("TokenizeNode");
             return new();
         }
-        static (string, Branch) TokenizeBranch(string src, Dictionary<string, int> BranchTable)
-        {
-            throw new NotImplementedException();
-        }
-        static Grammar TokenizeToGrammar(string src)
-        {
-            //a grammar `g` is composed of multiple branches each branch `b` is composed of multiple nodes each node `n` has a priority(not exactly a probability) `p`
-            throw new NotImplementedException();
-        }
 #pragma warning restore CS8629
-        static bool NodeSave(string filepath, Node node)
+        static bool NodeSave(string FilePath, Node node)
         {
             StringBuilder sb = NodeToSb(ref node);
             try
             {
-                File.WriteAllText(filepath, sb.ToString());
+                File.WriteAllText(FilePath, sb.ToString());
             }
             catch (Exception e)
             {
@@ -701,12 +691,12 @@ namespace random_art
             }
             return true;
         }
-        static Node? NodeLoad(string filepath)
+        static Node? NodeLoad(string FilePath)
         {
             string src;
             try
             {
-                src = File.ReadAllText(filepath);
+                src = File.ReadAllText(FilePath);
             }
             catch (Exception e)
             {
@@ -759,25 +749,25 @@ namespace random_art
                 Usage();
                 Environment.Exit(0);
             }
-            string mode = ShifArgs(ref args, "UNREACHABLE");
+            string Mode = ShifArgs(ref args, "UNREACHABLE");
 
-            if (mode.Equals("-h", StringComparison.CurrentCultureIgnoreCase)) { Usage(); Environment.Exit(0); }
+            if (Mode.Equals("-h", StringComparison.CurrentCultureIgnoreCase)) { Usage(); Environment.Exit(0); }
 
-            if (mode.Equals("cli", StringComparison.CurrentCultureIgnoreCase))
+            if (Mode.Equals("cli", StringComparison.CurrentCultureIgnoreCase))
             {
-                string outputpath = "Default_output_path.png";
-                int depth = 20;
+                string OutputPath = "Default_output_path.png";
+                int Depth = 20;
                 while (args.Length > 0)
                 {
-                    string flag = ShifArgs(ref args, "");
-                    if (flag == "-o")
+                    string Flag = ShifArgs(ref args, "");
+                    if (Flag == "-o")
                     {
-                        outputpath = ShifArgs(ref args, "No output file path provided\n");
+                        OutputPath = ShifArgs(ref args, "No output file path provided\n");
                     }
-                    else if (flag == "-depth")
+                    else if (Flag == "-depth")
                     {
-                        string d = ShifArgs(ref args, "No depth provided\n");
-                        if (!int.TryParse(d, out depth))
+                        string DepthFlag = ShifArgs(ref args, "No depth provided\n");
+                        if (!int.TryParse(DepthFlag, out Depth))
                             Log(LogType.ERROR, "Could not parse depth\n");
                     }
                     else
@@ -785,21 +775,21 @@ namespace random_art
                         Log(LogType.ERROR, "invalid flag\n");
                     }
                 }
-                if (!GrammarToImage(LoadDefaultGrammar(), 800, 800, outputpath, depth))
+                if (!GrammarToImage(LoadDefaultGrammar(), 800, 800, OutputPath, Depth))
                 {
                     Log(LogType.ERROR, ERROR_MESSAGE);
                 }
             }
-            else if (mode.Equals("gui", StringComparison.CurrentCultureIgnoreCase))
+            else if (Mode.Equals("gui", StringComparison.CurrentCultureIgnoreCase))
             {
-                int depth = 20;
+                int Depth = 20;
                 while (args.Length > 0)
                 {
-                    string flag = ShifArgs(ref args, "");
-                    if (flag == "-depth")
+                    string Flag = ShifArgs(ref args, "");
+                    if (Flag == "-depth")
                     {
-                        string d = ShifArgs(ref args, "No depth provided\n");
-                        if (!int.TryParse(d, out depth))
+                        string DepthFlag = ShifArgs(ref args, "No depth provided\n");
+                        if (!int.TryParse(DepthFlag, out Depth))
                             Log(LogType.ERROR, "Could not parse depth\n");
                     }
                     else
@@ -807,18 +797,14 @@ namespace random_art
                         Log(LogType.ERROR, "invalid flag\n");
                     }
                 }
-                Gui(800, 800, depth);
+                Gui(800, 800, Depth);
             }
             else
             {
                 Usage();
             }
             // TODO:
-            //- naming
-            //- add more flags (width, height, generate videos using ffmpeg pipeline)
-
-            //- save and load grammar
-            //- handle the branch in saving/loading the grammar 
+            //- add more flags (Width, Height, generate videos using ffmpeg pipeline)
             //- A random grammar generator
             //	- you need rules for generation
             //- we may have to redefine the binary operators (add, mul, ...) to take three inputs instead of just (lhs, rhs), and to expand it to a variadic for that matter
