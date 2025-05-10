@@ -7,6 +7,7 @@ using System.Xml.Serialization;
 using System.Diagnostics.CodeAnalysis;
 
 
+
 #pragma warning disable IDE0079 // Remove unnecessary suppression
 #pragma warning disable RETURN0001
 #pragma warning restore IDE0079 // Remove unnecessary suppression
@@ -81,54 +82,6 @@ namespace random_art
     }
     internal sealed class Program
     {
-        public enum LogType
-        {
-            INFO, WARNING, ERROR, NORMAL
-        }
-        static void Log(LogType type, string msg)
-        {
-            ConsoleColor before = Console.ForegroundColor;
-            string head;
-            switch (type)
-            {
-                case LogType.INFO:
-                    Console.ForegroundColor = ConsoleColor.Green;
-                    head = "INFO: ";
-                    break;
-                case LogType.WARNING:
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    head = "WARNING: ";
-                    break;
-                case LogType.ERROR:
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    head = "ERROR: ";
-                    break;
-                case LogType.NORMAL:
-                    head = "";
-                    break;
-                default:
-                    UNREACHABLE("Log");
-                    return;
-            }
-            Console.Write(head + msg);
-            Console.ForegroundColor = before;
-        }
-        static string ShifArgs(ref string[] args, string msg)
-        {
-            if (args.Length <= 0)
-            {
-                Log(LogType.ERROR, msg);
-                Environment.Exit(1);
-            }
-            string arg = args[0];
-            args = args[1..];
-            return arg;
-        }
-        static void UNREACHABLE(string msg)
-        {
-            Log(LogType.ERROR, $"UNREACHABLE: {msg}\n");
-            Environment.Exit(1);
-        }
         static Node NodeBranch(int branch) => new() { type = NodeType.Branch, branch = branch };
         static Node NodeNumber(float number) => new() { type = NodeType.Number, number = number };
         static Node NodeBoolean(bool boolean) => new() { type = NodeType.Boolean, boolean = boolean };
@@ -222,7 +175,7 @@ namespace random_art
                 case NodeType.If:
                     return NodeTernary(BranchToNode(grammar, node.ternary.first, Depth), BranchToNode(grammar, node.ternary.second, Depth), BranchToNode(grammar, node.ternary.third, Depth), node.type);
                 default:
-                    UNREACHABLE("BranchToNode");
+                    Shartilities.UNREACHABLE("BranchToNode");
                     return new();
             }
         }
@@ -263,7 +216,7 @@ namespace random_art
                     return new($"(({NodeToShaderFunction(f.ternary.first)}) ? ({NodeToShaderFunction(f.ternary.second)}) : ({NodeToShaderFunction(f.ternary.third)}))");
                 case NodeType.Branch:
                 default:
-                    UNREACHABLE("NodeToShaderFunction");
+                    Shartilities.UNREACHABLE("NodeToShaderFunction");
                     return new();
             }
         }
@@ -324,9 +277,9 @@ namespace random_art
                 {
                     string FilePath = "Node.txt";
                     if (!NodeSave(FilePath, currentnode))
-                        Log(LogType.ERROR, $"could not save node because of : {ERROR_MESSAGE}\n");
+                        Shartilities.Log(Shartilities.LogType.ERROR, $"could not save node because of : {ERROR_MESSAGE}\n");
                     else
-                        Log(LogType.INFO, $"node saved successfully into : {FilePath}\n");
+                        Shartilities.Log(Shartilities.LogType.INFO, $"node saved successfully into : {FilePath}\n");
                 }
                 if (Raylib.IsKeyPressed(KeyboardKey.L))
                 {
@@ -335,12 +288,12 @@ namespace random_art
                     Node? tempnode = NodeLoad(FilePath);
                     if (!tempnode.HasValue)
                     {
-                        Log(LogType.ERROR, $"could not load node because of : {ERROR_MESSAGE}\n");
+                        Shartilities.Log(Shartilities.LogType.ERROR, $"could not load node because of : {ERROR_MESSAGE}\n");
                     }
                     else
                     {
-                        Log(LogType.INFO, $"node loaded successfully from : {FilePath}\n");
-                        Log(LogType.NORMAL, "compiling node into a fragment shader\n");
+                        Shartilities.Log(Shartilities.LogType.INFO, $"node loaded successfully from : {FilePath}\n");
+                        Shartilities.Log(Shartilities.LogType.NORMAL, "compiling node into a fragment shader\n");
                         StringBuilder tempFragmentShader = NodeToShader(tempnode.Value);
                         currentnode = tempnode.Value;
                         Raylib.UnloadShader(Shader);
@@ -405,11 +358,11 @@ namespace random_art
         static void Usage()
         {
             // TODO: update usage to suite the features available
-            Log(LogType.NORMAL, "\nUsage: \n");
-            Log(LogType.NORMAL, $".\\random-art.exe [gui|cli] [option(s)]\n");
-            Log(LogType.NORMAL, "\nOptions:\n");
-            Log(LogType.NORMAL, $"\t{"-o <file>",-15} : place the output image into <file>\n");
-            Log(LogType.NORMAL, $"\t{"-depth <depth>",-15} : specify the depth of the generated function\n\n");
+            Shartilities.Log(Shartilities.LogType.NORMAL, "\nUsage: \n");
+            Shartilities.Log(Shartilities.LogType.NORMAL, $".\\random-art.exe [gui|cli] [option(s)]\n");
+            Shartilities.Log(Shartilities.LogType.NORMAL, "\nOptions:\n");
+            Shartilities.Log(Shartilities.LogType.NORMAL, $"\t{"-o <file>",-15} : place the output image into <file>\n");
+            Shartilities.Log(Shartilities.LogType.NORMAL, $"\t{"-depth <depth>",-15} : specify the depth of the generated function\n\n");
         }
         static void Expr3d()
         {
@@ -508,7 +461,7 @@ namespace random_art
                     sb.Append($"{node.type}({node.branch})");
                     break;
                 default:
-                    UNREACHABLE("NodeToSb");
+                    Shartilities.UNREACHABLE("NodeToSb");
                     return new();
             }
             return sb;
@@ -540,7 +493,7 @@ namespace random_art
             {
                 return Consume(src, ref index);
             }
-            Log(LogType.ERROR, $"Error Expected {type}\n");
+            Shartilities.Log(Shartilities.LogType.ERROR, $"Error Expected {type}\n");
             Environment.Exit(1);
             return null;
         }
@@ -580,7 +533,7 @@ namespace random_art
                 case "random":
                     return NodeType.random;
                 case "branch":
-                    UNREACHABLE("StringToType");
+                    Shartilities.UNREACHABLE("StringToType");
                     return new();
                 default:
                     return NodeType.Branch;
@@ -662,16 +615,16 @@ namespace random_art
                         Node ternary = NodeTernary(first, second, third, type);
                         return ternary;
                     case NodeType.Branch:
-                        UNREACHABLE("TokenizeNode");
+                        Shartilities.UNREACHABLE("TokenizeNode");
                         return new();
                     case NodeType.Number:
                     case NodeType.random:
                     default:
-                        UNREACHABLE("TokenizeNode");
+                        Shartilities.UNREACHABLE("TokenizeNode");
                         return new();
                 }
             }
-            UNREACHABLE("TokenizeNode");
+            Shartilities.UNREACHABLE("TokenizeNode");
             return new();
         }
 #pragma warning restore CS8629
@@ -742,12 +695,21 @@ namespace random_art
         [RequiresUnreferencedCode("Calls random_art.Program.SaveObject<T>(String, T, Boolean)")]
         static int Main(string[] args)
         {
+            //string foo = "lkdsfj ldskj fdskl f   \n\r\r  \n\r\r\n\r\r        jds  sldf djkls f d   \n\r\r    \n\r\r    f  dfd sl  \n\r\r   fkdjflks \n\n\r\r";
+            //string[] foos = foo.Split(' ');
+            //List<string> bars = [.. foos];
+            //bars.RemoveAll(x => string.IsNullOrWhiteSpace(x) || string.IsNullOrEmpty(x));
+            //for (int i = 0; i < bars.Count; i++)
+            //{
+            //    Console.WriteLine($"'{bars[i]}'");
+            //}
+            //return 0;
             if (args.Length <= 0)
             {
                 Usage();
                 Environment.Exit(0);
             }
-            string Mode = ShifArgs(ref args, "UNREACHABLE");
+            string Mode = Shartilities.ShifArgs(ref args, "UNREACHABLE");
 
             if (Mode.Equals("-h", StringComparison.CurrentCultureIgnoreCase)) { Usage(); Environment.Exit(0); }
 
@@ -757,25 +719,25 @@ namespace random_art
                 int Depth = 20;
                 while (args.Length > 0)
                 {
-                    string Flag = ShifArgs(ref args, "");
+                    string Flag = Shartilities.ShifArgs(ref args, "");
                     if (Flag == "-o")
                     {
-                        OutputPath = ShifArgs(ref args, "No output file path provided\n");
+                        OutputPath = Shartilities.ShifArgs(ref args, "No output file path provided\n");
                     }
                     else if (Flag == "-depth")
                     {
-                        string DepthFlag = ShifArgs(ref args, "No depth provided\n");
+                        string DepthFlag = Shartilities.ShifArgs(ref args, "No depth provided\n");
                         if (!int.TryParse(DepthFlag, out Depth))
-                            Log(LogType.ERROR, "Could not parse depth\n");
+                            Shartilities.Log(Shartilities.LogType.ERROR, "Could not parse depth\n");
                     }
                     else
                     {
-                        Log(LogType.ERROR, "invalid flag\n");
+                        Shartilities.Log(Shartilities.LogType.ERROR, "invalid flag\n");
                     }
                 }
                 if (!GrammarToImage(LoadDefaultGrammar(), 800, 800, OutputPath, Depth))
                 {
-                    Log(LogType.ERROR, ERROR_MESSAGE);
+                    Shartilities.Log(Shartilities.LogType.ERROR, ERROR_MESSAGE);
                 }
             }
             else if (Mode.Equals("gui", StringComparison.CurrentCultureIgnoreCase))
@@ -783,16 +745,16 @@ namespace random_art
                 int Depth = 20;
                 while (args.Length > 0)
                 {
-                    string Flag = ShifArgs(ref args, "");
+                    string Flag = Shartilities.ShifArgs(ref args, "");
                     if (Flag == "-depth")
                     {
-                        string DepthFlag = ShifArgs(ref args, "No depth provided\n");
+                        string DepthFlag = Shartilities.ShifArgs(ref args, "No depth provided\n");
                         if (!int.TryParse(DepthFlag, out Depth))
-                            Log(LogType.ERROR, "Could not parse depth\n");
+                            Shartilities.Log(Shartilities.LogType.ERROR, "Could not parse depth\n");
                     }
                     else
                     {
-                        Log(LogType.ERROR, "invalid flag\n");
+                        Shartilities.Log(Shartilities.LogType.ERROR, "invalid flag\n");
                     }
                 }
                 Gui(800, 800, Depth);
@@ -802,10 +764,11 @@ namespace random_art
                 Usage();
             }
             // TODO:
-            //- add more flags (Width, Height, generate videos using ffmpeg pipeline)
-            //- A random grammar generator
-            //	- you need rules for generation
-            //- we may have to redefine the binary operators (add, mul, ...) to take three inputs instead of just (lhs, rhs), and to expand it to a variadic for that matter
+            //  - introduce and experiment with 3D
+            //  - add more flags (Width, Height, generate videos using ffmpeg pipeline)
+            //  - A random grammar generator
+            //  	- you need rules for generation
+            //  - we may have to redefine the binary operators (add, mul, ...) to take three inputs instead of just (lhs, rhs), and to expand it to a variadic for that matter
             return 0;
         }
     }
