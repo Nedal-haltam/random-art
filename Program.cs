@@ -364,36 +364,53 @@ namespace random_art
             Shartilities.Log(Shartilities.LogType.NORMAL, $"\t{"-o <file>",-15} : place the output image into <file>\n");
             Shartilities.Log(Shartilities.LogType.NORMAL, $"\t{"-depth <depth>",-15} : specify the depth of the generated function\n\n");
         }
+        public struct Camera
+        {
+            public Camera3D Camera3D;
+            public float CameraSpeed;
+            public float ZoomSpeed;
+        }
         static void Expr3d()
         {
             Raylib.InitWindow(800, 800, "raylib [core] example - 3d camera free");
-
-            Camera3D camera;
-            camera.Position = new Vector3(10.0f, 10.0f, 10.0f);
-            camera.Target = new Vector3(0.0f, 0.0f, 0.0f);
-            camera.Up = new Vector3(0.0f, 1.0f, 0.0f);
-            camera.FovY = 45.0f;
-            camera.Projection = CameraProjection.Perspective;
+            Camera camera = new()
+            {
+                Camera3D = new()
+                {
+                    Position = new Vector3(0, 0, -10),
+                    Target = new Vector3(0.0f, 0.0f, 0.0f),
+                    Up = new Vector3(0.0f, 1.0f, 0.0f),
+                    FovY = 45.0f,
+                    Projection = CameraProjection.Perspective,
+                },
+                CameraSpeed = 1.0f,
+                ZoomSpeed = 0.0f,
+            };
 
             Vector3 cubePosition = new(0.0f, 0.0f, 0.0f);
+            float rotx = 0;
+            float roty = 0;
+            float sensitivity = 0.3f;
             Raylib.SetTargetFPS(60);
             while (!Raylib.WindowShouldClose())
             {
-                Raylib.UpdateCamera(ref camera, CameraMode.Free);
-                if (Raylib.IsKeyDown(KeyboardKey.Z))
+                if (Raylib.IsMouseButtonDown(MouseButton.Left))
                 {
-                    camera.Target = new Vector3(0.0f, 0.0f, 0.0f);
+                    Vector2 md = Raylib.GetMouseDelta();
+                    rotx -= md.Y * sensitivity;
+                    roty += md.X * sensitivity;
                 }
 
-                Raylib.BeginDrawing();
-                Raylib.ClearBackground(Color.RayWhite);
+                camera.Camera3D.Position.Z += 40 * Raylib.GetMouseWheelMove() * Raylib.GetFrameTime();
+                Raylib.ClearBackground(new(0x20, 0x20, 0x20, 0xFF));
 
-                Raylib.BeginMode3D(camera);
-                Raylib.DrawPoint3D(cubePosition, Color.Brown);
-                Raylib.DrawCircle3D(cubePosition, 7, new(0, 0, 0), 0, Color.Blue);
+                Raylib.BeginMode3D(camera.Camera3D);
+                Rlgl.PushMatrix();
+                Rlgl.Translatef(0.0f, 0.0f, 0.0f);
+                Rlgl.Rotatef(rotx, 1.0f, 0.0f, 0.0f);
+                Rlgl.Rotatef(roty, 0.0f, 1.0f, 0.0f);
                 Raylib.DrawCube(cubePosition, 2.0f, 2.0f, 2.0f, Color.Red);
-                Raylib.DrawCubeWires(cubePosition, 2.0f, 2.0f, 2.0f, Color.Maroon);
-                Raylib.DrawGrid(10, 1.0f);
+                Rlgl.PopMatrix();
                 Raylib.EndMode3D();
 
                 Raylib.EndDrawing();
@@ -691,19 +708,11 @@ namespace random_art
                 reader?.Close();
             }
         }
-
+        
         [RequiresUnreferencedCode("Calls random_art.Program.SaveObject<T>(String, T, Boolean)")]
         static int Main(string[] args)
         {
-            //string foo = "lkdsfj ldskj fdskl f   \n\r\r  \n\r\r\n\r\r        jds  sldf djkls f d   \n\r\r    \n\r\r    f  dfd sl  \n\r\r   fkdjflks \n\n\r\r";
-            //string[] foos = foo.Split(' ');
-            //List<string> bars = [.. foos];
-            //bars.RemoveAll(x => string.IsNullOrWhiteSpace(x) || string.IsNullOrEmpty(x));
-            //for (int i = 0; i < bars.Count; i++)
-            //{
-            //    Console.WriteLine($"'{bars[i]}'");
-            //}
-            //return 0;
+            Expr3d();
             if (args.Length <= 0)
             {
                 Usage();
