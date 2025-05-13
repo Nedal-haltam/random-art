@@ -5,6 +5,7 @@ using Color = Raylib_cs.Color;
 using Image = Raylib_cs.Image;
 using System.Xml.Serialization;
 using System.Diagnostics.CodeAnalysis;
+using static random_art.Program;
 
 
 
@@ -15,7 +16,7 @@ namespace random_art
 {
     public enum NodeType
     {
-        Number, random, X, Y, T, Boolean,
+        Number, random, X, Y, Z, T, Boolean,
         SQRT,
         ADD, MUL, SUB, GT, GTE, MOD, DIV,
         Triple,
@@ -31,16 +32,17 @@ namespace random_art
         }
         public Node expr;
     }
-    public sealed class NodeBinary
+
+    public sealed class NodeMonoid
     {
-        public NodeBinary(){}
-        public NodeBinary(Node lhs, Node rhs)
+        public NodeMonoid(){}
+        public NodeMonoid(List<Node> nodes, float Identity)
         {
-            this.lhs = lhs;
-            this.rhs = rhs;
+            this.nodes = nodes;
+            this.Identity = Identity;
         }
-        public Node lhs;
-        public Node rhs;
+        public List<Node> nodes = [];
+        public float Identity;
     }
     public sealed class NodeTernary
     {
@@ -62,7 +64,7 @@ namespace random_art
         public bool boolean;
         public int branch;
         public NodeUnary unary;
-        public NodeBinary binary;
+        public NodeMonoid binary;
         public NodeTernary ternary;
     }
     public struct Branch
@@ -88,19 +90,35 @@ namespace random_art
         static Node NodeRandom() => new() { type = NodeType.random, number = random.NextSingle() * 2 - 1 };
         static Node NodeX() => new() { type = NodeType.X };
         static Node NodeY() => new() { type = NodeType.Y };
+        static Node NodeZ() => new() { type = NodeType.Z };
         static Node NodeT() => new() { type = NodeType.T };
         static Node NodeSQRT(Node expr) => NodeUnary(expr, NodeType.SQRT);
-        static Node NodeADD(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.ADD);
-        static Node NodeDIV(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.DIV);
-        static Node NodeSUB(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.SUB);
-        static Node NodeMUL(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.MUL);
-        static Node NodeMOD(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.MOD);
-        static Node NodeGT(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.GT);
-        static Node NodeGTE(Node lhs, Node rhs) => NodeBinary(lhs, rhs, NodeType.GTE);
+        static Node NodeADD(List<Node> nodes) => NodeMonoid(nodes, NodeType.ADD, 0);
+        static Node NodeSUB(List<Node> nodes) => NodeMonoid(nodes, NodeType.SUB, 0);
+        static Node NodeDIV(List<Node> nodes) => NodeMonoid(nodes, NodeType.DIV, 1);
+        static Node NodeMUL(List<Node> nodes) => NodeMonoid(nodes, NodeType.MUL, 1);
+        static Node NodeMOD(List<Node> nodes) => NodeMonoid(nodes, NodeType.MOD, 1);
+        static Node NodeGT(List<Node> nodes) => NodeMonoid(nodes, NodeType.GT, float.MinValue);
+        static Node NodeGTE(List<Node> nodes) => NodeMonoid(nodes, NodeType.GTE, float.MinValue);
         static Node NodeIf(Node cond, Node then, Node elsee) => NodeTernary(cond, then, elsee, NodeType.If);
         static Node NodeTriple(Node first, Node second, Node third) => NodeTernary(first, second, third, NodeType.Triple);
         static Node NodeUnary(Node expr, NodeType type) => new() { type = type, unary = new(expr) };
-        static Node NodeBinary(Node lhs, Node rhs, NodeType type) => new() { type = type, binary = new(lhs, rhs) };
+        static float GetIdentity(NodeType type)
+        {
+            float iden = (type == NodeType.ADD || type == NodeType.SUB) ? 0 : 1;
+            iden = (type == NodeType.GT || type == NodeType.GTE) ? float.MinValue : iden;
+            return iden;
+        }
+        static Node NodeMonoid(List<Node> nodes, NodeType type, float? Identity = null)
+        {
+            if (!Identity.HasValue)
+            {
+                float iden = GetIdentity(type);
+                return new() { type = type, binary = new(nodes, iden) };
+            }
+            else
+                return new() { type = type, binary = new(nodes, Identity.Value) };
+        }
         static Node NodeTernary(Node first, Node second, Node third, NodeType type) => new() { type = type, ternary = new(first, second, third) };
         static void NodePrint(ref Node node)
         {
@@ -124,11 +142,10 @@ namespace random_art
                         new(NodeX(), 1),
                         new(NodeY(), 1),
                         new(NodeT(), 1),
-                        new(NodeSQRT(NodeADD(NodeADD(NodeMUL(NodeX(), NodeX()),
-                                 NodeMUL(NodeY(), NodeY())),
-                                 NodeMUL(NodeT(), NodeT()))), 1),
+                        new(NodeSQRT(
+                            NodeADD([NodeMUL([NodeX(), NodeX()]), NodeMUL([NodeY(), NodeY()]), NodeMUL([NodeT(), NodeT()])])), 1),
                     ] },
-                    new() { nodes = [new(NodeBranch(1), 1), new(NodeADD(NodeBranch(2), NodeBranch(2)), 1), new(NodeMUL(NodeBranch(2), NodeBranch(2)), 1)] },
+                    new() { nodes = [new(NodeBranch(1), 1), new(NodeADD([NodeBranch(2), NodeBranch(2)]), 1), new(NodeMUL([NodeBranch(2), NodeBranch(2)]), 1)] },
                 ],
                 startbranchindex = 0,
                 terminalbranchindex = [1],
@@ -158,6 +175,7 @@ namespace random_art
                 case NodeType.Number:
                 case NodeType.X:
                 case NodeType.Y:
+                case NodeType.Z:
                 case NodeType.Boolean:
                 case NodeType.T:
                     return node;
@@ -170,7 +188,10 @@ namespace random_art
                 case NodeType.GTE:
                 case NodeType.MOD:
                 case NodeType.DIV:
-                    return NodeBinary(BranchToNode(grammar, node.binary.lhs, Depth), BranchToNode(grammar, node.binary.rhs, Depth), node.type);
+                    List<Node> nodes = [];
+                    foreach(Node n in node.binary.nodes)
+                        nodes.Add(BranchToNode(grammar, n, Depth));
+                    return NodeMonoid(nodes, node.type);
                 case NodeType.Triple:
                 case NodeType.If:
                     return NodeTernary(BranchToNode(grammar, node.ternary.first, Depth), BranchToNode(grammar, node.ternary.second, Depth), BranchToNode(grammar, node.ternary.third, Depth), node.type);
@@ -190,24 +211,77 @@ namespace random_art
                     return new("(x)");
                 case NodeType.Y:
                     return new("(y)");
+                case NodeType.Z:
+                    return new("(z)");
                 case NodeType.T:
                     return new("(t)");
                 case NodeType.Boolean:
                     return new((f.boolean) ? "(true)" : "(false)");
                 case NodeType.ADD:
-                    return new($"({NodeToShaderFunction(f.binary.lhs)} + {NodeToShaderFunction(f.binary.rhs)})");
+                    {
+                        StringBuilder sb = new();
+                        sb.Append($"({GetIdentity(f.type)}");
+                        foreach (Node n in f.binary.nodes)
+                            sb.Append($" + {NodeToShaderFunction(n)}");
+                        sb.Append(")");
+                        return sb;
+                    }
                 case NodeType.MUL:
-                    return new($"({NodeToShaderFunction(f.binary.lhs)} * {NodeToShaderFunction(f.binary.rhs)})");
+                    {
+                        StringBuilder sb = new();
+                        sb.Append($"({GetIdentity(f.type)}");
+                        foreach (Node n in f.binary.nodes)
+                            sb.Append($" * {NodeToShaderFunction(n)}");
+                        sb.Append(")");
+                        return sb;
+                    }
                 case NodeType.SUB:
-                    return new($"({NodeToShaderFunction(f.binary.lhs)} - {NodeToShaderFunction(f.binary.rhs)})");
+                    {
+                        StringBuilder sb = new();
+                        sb.Append($"({GetIdentity(f.type)}");
+                        foreach (Node n in f.binary.nodes)
+                            sb.Append($" - {NodeToShaderFunction(n)}");
+                        sb.Append(")");
+                        return sb;
+                    }
                 case NodeType.GT:
-                    return new($"({NodeToShaderFunction(f.binary.lhs)} > {NodeToShaderFunction(f.binary.rhs)})");
+                    {
+                        StringBuilder sb = new();
+                        sb.Append($"({GetIdentity(f.type)}");
+                        foreach (Node n in f.binary.nodes)
+                            sb.Append($" > {NodeToShaderFunction(n)}");
+                        sb.Append(")");
+                        return sb;
+                    }
                 case NodeType.GTE:
-                    return new($"({NodeToShaderFunction(f.binary.lhs)} >= {NodeToShaderFunction(f.binary.rhs)})");
+                    {
+                        StringBuilder sb = new();
+                        sb.Append($"({GetIdentity(f.type)}");
+                        foreach (Node n in f.binary.nodes)
+                            sb.Append($" >= {NodeToShaderFunction(n)}");
+                        sb.Append(")");
+                        return sb;
+                    }
                 case NodeType.MOD:
-                    return new($"mod({NodeToShaderFunction(f.binary.lhs)}, {NodeToShaderFunction(f.binary.rhs)})");
+                    {
+                        StringBuilder sb = new();
+                        sb.Append($"mod({GetIdentity(f.type)}");
+                        foreach (Node n in f.binary.nodes)
+                            sb.Append($" mod({NodeToShaderFunction(n)}");
+                        for (int i = 0; i < f.binary.nodes.Count; i++)
+                            sb.Append(')');
+                        sb.Append(")");
+                        return sb;
+                    }
                 case NodeType.DIV:
-                    return new($"({NodeToShaderFunction(f.binary.lhs)} / {NodeToShaderFunction(f.binary.rhs)})");
+                    {
+                        StringBuilder sb = new();
+                        sb.Append($"({GetIdentity(f.type)}");
+                        foreach (Node n in f.binary.nodes)
+                            sb.Append($" / {NodeToShaderFunction(n)}");
+                        sb.Append(")");
+                        return sb;
+                    }
                 case NodeType.SQRT:
                     return new($"(sqrt({NodeToShaderFunction(f.unary.expr)}))");
                 case NodeType.Triple:
@@ -226,12 +300,13 @@ namespace random_art
             string ShaderFunction = NodeToShaderFunction(f).ToString();
             FragmentShader.Append("#version 330\n");
             FragmentShader.Append("in vec2 fragTexCoord;\n");
+            FragmentShader.Append("in vec4 gl_FragCoord;\n");
             FragmentShader.Append("out vec4 finalColor;\n");
             FragmentShader.Append("uniform float csTIME;\n");
             FragmentShader.Append("void main()\n");
             FragmentShader.Append("{\n");
-            FragmentShader.Append("float x = 2.0 * fragTexCoord.x - 1.0;\n");
-            FragmentShader.Append("float y = 2.0 * fragTexCoord.y - 1.0;\n");
+            FragmentShader.Append("float x = 2.0 * (fragTexCoord.x) - 1.0;\n");
+            FragmentShader.Append("float y = 2.0 * (fragTexCoord.y) - 1.0;\n");
             FragmentShader.Append("float t = sin(csTIME);\n");
             FragmentShader.Append($"   vec3 tempcolor = {ShaderFunction};\n");
             FragmentShader.Append("    finalColor = vec4((tempcolor + 1) / 2.0, 1);\n");
@@ -369,53 +444,30 @@ namespace random_art
             public Camera3D Camera3D;
             public float CameraSpeed;
             public float ZoomSpeed;
-        }
-        static void Expr3d()
-        {
-            Raylib.InitWindow(800, 800, "raylib [core] example - 3d camera free");
-            Camera camera = new()
-            {
-                Camera3D = new()
-                {
-                    Position = new Vector3(0, 0, -10),
-                    Target = new Vector3(0.0f, 0.0f, 0.0f),
-                    Up = new Vector3(0.0f, 1.0f, 0.0f),
-                    FovY = 45.0f,
-                    Projection = CameraProjection.Perspective,
-                },
-                CameraSpeed = 1.0f,
-                ZoomSpeed = 0.0f,
-            };
-
-            Vector3 cubePosition = new(0.0f, 0.0f, 0.0f);
-            float rotx = 0;
-            float roty = 0;
-            float sensitivity = 0.3f;
-            Raylib.SetTargetFPS(60);
-            while (!Raylib.WindowShouldClose())
+            public float RotationX;
+            public float RotationY;
+            public float Sensitivity;
+            public void Update()
             {
                 if (Raylib.IsMouseButtonDown(MouseButton.Left))
                 {
                     Vector2 md = Raylib.GetMouseDelta();
-                    rotx -= md.Y * sensitivity;
-                    roty += md.X * sensitivity;
+                    this.RotationX -= md.Y * this.Sensitivity;
+                    this.RotationY += md.X * this.Sensitivity;
                 }
-
-                camera.Camera3D.Position.Z += 40 * Raylib.GetMouseWheelMove() * Raylib.GetFrameTime();
-                Raylib.ClearBackground(new(0x20, 0x20, 0x20, 0xFF));
-
-                Raylib.BeginMode3D(camera.Camera3D);
-                Rlgl.PushMatrix();
-                Rlgl.Translatef(0.0f, 0.0f, 0.0f);
-                Rlgl.Rotatef(rotx, 1.0f, 0.0f, 0.0f);
-                Rlgl.Rotatef(roty, 0.0f, 1.0f, 0.0f);
-                Raylib.DrawCube(cubePosition, 2.0f, 2.0f, 2.0f, Color.Red);
-                Rlgl.PopMatrix();
-                Raylib.EndMode3D();
-
-                Raylib.EndDrawing();
+                this.Camera3D.Position.Z += this.ZoomSpeed * Raylib.GetMouseWheelMove() * Raylib.GetFrameTime();
             }
-            Raylib.CloseWindow();
+            public readonly void UpdateRotaions()
+            {
+                Rlgl.Translatef(0.0f, 0.0f, 0.0f);
+                Rlgl.Rotatef(this.RotationX, 1.0f, 0.0f, 0.0f);
+                Rlgl.Rotatef(this.RotationY, 0.0f, 1.0f, 0.0f);
+            }
+        }
+        public struct Pixel(Vector3 p, Color c)
+        {
+            public Vector3 Position = p;
+            public Color Color = c;
         }
         static StringBuilder NodeToSb(ref Node node)
         {
@@ -431,6 +483,9 @@ namespace random_art
                     break;
                 case NodeType.Y:
                     sb.Append('y');
+                    break;
+                case NodeType.Z:
+                    sb.Append('z');
                     break;
                 case NodeType.T:
                     sb.Append('t');
@@ -448,9 +503,13 @@ namespace random_art
                 case NodeType.GTE:
                 case NodeType.DIV:
                     sb.Append($"{node.type}(");
-                    sb.Append(NodeToSb(ref node.binary.lhs));
-                    sb.Append(',');
-                    sb.Append(NodeToSb(ref node.binary.rhs));
+                    sb.Append('0');
+                    for (int i = 0; i < node.binary.nodes.Count; i++)
+                    {
+                        sb.Append(',');
+                        Node n = node.binary.nodes[i];
+                        sb.Append(NodeToSb(ref n));
+                    }
                     sb.Append(')');
                     break;
                 case NodeType.If:
@@ -590,6 +649,8 @@ namespace random_art
                         return NodeX();
                     case NodeType.Y:
                         return NodeY();
+                    case NodeType.Z:
+                        return NodeZ();
                     case NodeType.T:
                         return NodeT();
                     case NodeType.Boolean:
@@ -608,15 +669,17 @@ namespace random_art
                     case NodeType.GTE:
                     case NodeType.MOD:
                     case NodeType.DIV:
-                        Tryconsumeerr('(', src, ref index);
-                        Node lhs = TokenizeNode(src[index..], out int lhsstep);
-                        index+= lhsstep;
-                        Tryconsumeerr(',', src, ref index);
-                        Node rhs = TokenizeNode(src[index..], out int rhsstep);
-                        index+= rhsstep;
-                        Tryconsumeerr(')', src, ref index);
-                        Node binary = NodeBinary(lhs, rhs, type);
-                        return binary;
+                        Shartilities.UNREACHABLE("TODO: binary tokenization");
+                        return new();
+                        //Tryconsumeerr('(', src, ref index);
+                        //Node lhs = TokenizeNode(src[index..], out int lhsstep);
+                        //index+= lhsstep;
+                        //Tryconsumeerr(',', src, ref index);
+                        //Node rhs = TokenizeNode(src[index..], out int rhsstep);
+                        //index+= rhsstep;
+                        //Tryconsumeerr(')', src, ref index);
+                        //Node binary = NodeMonoid(lhs, rhs, type);
+                        //return binary;
                     case NodeType.Triple:
                     case NodeType.If:
                         Tryconsumeerr('(', src, ref index);
@@ -712,7 +775,6 @@ namespace random_art
         [RequiresUnreferencedCode("Calls random_art.Program.SaveObject<T>(String, T, Boolean)")]
         static int Main(string[] args)
         {
-            Expr3d();
             if (args.Length <= 0)
             {
                 Usage();
@@ -773,7 +835,6 @@ namespace random_art
                 Usage();
             }
             // TODO:
-            //  - introduce and experiment with 3D
             //  - add more flags (Width, Height, generate videos using ffmpeg pipeline)
             //  - A random grammar generator
             //  	- you need rules for generation
