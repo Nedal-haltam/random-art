@@ -838,7 +838,7 @@ namespace random_art
             //  - add more flags (Width, Height, generate videos using ffmpeg pipeline)
             //  - A random grammar generator
             //  	- you need rules for generation
-            //  - we may have to redefine the binary operators (add, mul, ...) to take three inputs instead of just (lhs, rhs), and to expand it to a variadic for that matter
+            //  - test all monoid operations as separate nodes
             return 0;
         }
     }
