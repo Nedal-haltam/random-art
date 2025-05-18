@@ -432,9 +432,8 @@ namespace random_art
         }
         static void Usage()
         {
-            // TODO: update usage to suite the features available
             Shartilities.Log(Shartilities.LogType.NORMAL, "\nUsage: \n");
-            Shartilities.Log(Shartilities.LogType.NORMAL, $".\\random-art.exe [gui|cli] [option(s)]\n");
+            Shartilities.Log(Shartilities.LogType.NORMAL, $".\\random-art.exe [gui|cli] [options]\n");
             Shartilities.Log(Shartilities.LogType.NORMAL, "\nOptions:\n");
             Shartilities.Log(Shartilities.LogType.NORMAL, $"\t{"-o <file>",-15} : place the output image into <file>\n");
             Shartilities.Log(Shartilities.LogType.NORMAL, $"\t{"-depth <depth>",-15} : specify the depth of the generated function\n\n");
@@ -669,8 +668,7 @@ namespace random_art
                     case NodeType.GTE:
                     case NodeType.MOD:
                     case NodeType.DIV:
-                        Shartilities.UNREACHABLE("TODO: binary tokenization");
-                        return new();
+                        throw new NotImplementedException("monoid node tokenization not implemented");
                         //Tryconsumeerr('(', src, ref index);
                         //Node lhs = TokenizeNode(src[index..], out int lhsstep);
                         //index+= lhsstep;
