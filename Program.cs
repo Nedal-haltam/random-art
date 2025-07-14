@@ -832,7 +832,7 @@ namespace random_art
             {
                 Usage();
             }
-            // TODO:
+            // future work:
             //  - add more flags (Width, Height, generate videos using ffmpeg pipeline)
             //  - A random grammar generator
             //  	- you need rules for generation
