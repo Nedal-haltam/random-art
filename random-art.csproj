@@ -15,24 +15,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="Raylib-cs">
-      <HintPath>Raylib-cs.dll</HintPath>
-    </Reference>
     <Reference Include="Shartilities">
-      <HintPath>Shartilities.dll</HintPath>
+      <HintPath>.\references\Shartilities.dll</HintPath>
     </Reference>
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Update="Raylib-cs.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="raylib.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-    <None Update="Shartilities.dll">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 
 </Project>
